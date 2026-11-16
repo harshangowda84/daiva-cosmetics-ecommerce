@@ -27,6 +27,16 @@ const parseRouteFromUrl = (): { page: string; param: string } => {
   // Check hash first: e.g. "#admin", "#/admin", "#pdp/slug", "#cart", "#plp/Serums%20&%20Treatments"
   const hash = window.location.hash.replace(/^#\/?/, '').trim();
   if (hash) {
+    // Backward compatibility for hyphenated links: "#pdp-product-slug"
+    if (hash.startsWith('pdp-')) {
+      const rawSlug = hash.slice(4);
+      return { page: 'pdp', param: decodeURIComponent(rawSlug) };
+    }
+    if (hash.startsWith('plp-')) {
+      const rawSub = hash.slice(4);
+      return { page: 'plp', param: decodeURIComponent(rawSub) };
+    }
+
     const parts = hash.split('/');
     const page = parts[0]?.toLowerCase() || 'home';
     const rawParam = parts.slice(1).join('/');
