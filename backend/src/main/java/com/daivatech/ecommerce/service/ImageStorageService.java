@@ -9,6 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,8 +25,13 @@ public class ImageStorageService {
 
     private static final Logger log = LoggerFactory.getLogger(ImageStorageService.class);
 
+    private final TelegramStorageService telegramStorageService;
     private final Path uploadDir = Paths.get("./uploads/products").toAbsolutePath().normalize();
     private final Path reviewUploadDir = Paths.get("./uploads/reviews").toAbsolutePath().normalize();
+
+    public ImageStorageService(TelegramStorageService telegramStorageService) {
+        this.telegramStorageService = telegramStorageService;
+    }
 
     // Max dimensions for Product Detail Page (Crystal high-res zoom & view)
     private static final int PDP_MAX_WIDTH = 1200;
@@ -94,18 +100,52 @@ public class ImageStorageService {
         // 1. Generate PDP Version (High-Resolution Detail View)
         Dimension pdpDim = calculateScale(origWidth, origHeight, PDP_MAX_WIDTH, PDP_MAX_HEIGHT);
         BufferedImage pdpImage = resizeImage(originalImage, pdpDim.width, pdpDim.height);
-        String pdpFilename = baseToken + "_pdp.jpg";
-        File pdpFile = uploadDir.resolve(pdpFilename).toFile();
-        ImageIO.write(pdpImage, "jpg", pdpFile);
 
         // 2. Generate PLP Version (Card Thumbnail View)
         Dimension plpDim = calculateScale(origWidth, origHeight, PLP_TARGET_WIDTH, PLP_MAX_HEIGHT);
         BufferedImage plpImage = resizeImage(originalImage, plpDim.width, plpDim.height);
+
+        // Try uploading to Telegram Cloud first to save Render disk space
+        if (telegramStorageService.isConfigured()) {
+            try {
+                ByteArrayOutputStream pdpBaos = new ByteArrayOutputStream();
+                ImageIO.write(pdpImage, "jpg", pdpBaos);
+                byte[] pdpBytes = pdpBaos.toByteArray();
+
+                ByteArrayOutputStream plpBaos = new ByteArrayOutputStream();
+                ImageIO.write(plpImage, "jpg", plpBaos);
+                byte[] plpBytes = plpBaos.toByteArray();
+
+                String pdpFileId = telegramStorageService.uploadImage(pdpBytes, baseToken + "_pdp.jpg");
+                String plpFileId = telegramStorageService.uploadImage(plpBytes, baseToken + "_plp.jpg");
+
+                log.info("Stored & auto-resized image to Telegram Cloud: PDP fileId={}, PLP fileId={}", pdpFileId, plpFileId);
+
+                UploadedImageDTO dto = new UploadedImageDTO();
+                dto.setOriginalFileName(originalFilename);
+                dto.setPdpUrl("/api/images/telegram/" + pdpFileId);
+                dto.setPlpUrl("/api/images/telegram/" + plpFileId);
+                dto.setPdpWidth(pdpDim.width);
+                dto.setPdpHeight(pdpDim.height);
+                dto.setPlpWidth(plpDim.width);
+                dto.setPlpHeight(plpDim.height);
+                dto.setFileSize((long) (pdpBytes.length + plpBytes.length));
+                return dto;
+            } catch (Exception ex) {
+                log.warn("Telegram cloud upload failed, falling back to local disk storage: {}", ex.getMessage());
+            }
+        }
+
+        // Fallback: save to local disk
+        String pdpFilename = baseToken + "_pdp.jpg";
+        File pdpFile = uploadDir.resolve(pdpFilename).toFile();
+        ImageIO.write(pdpImage, "jpg", pdpFile);
+
         String plpFilename = baseToken + "_plp.jpg";
         File plpFile = uploadDir.resolve(plpFilename).toFile();
         ImageIO.write(plpImage, "jpg", plpFile);
 
-        log.info("Stored & auto-resized image {}: PDP ({}x{}), PLP ({}x{})",
+        log.info("Stored & auto-resized image locally: PDP ({}x{}), PLP ({}x{})",
                 originalFilename, pdpDim.width, pdpDim.height, plpDim.width, plpDim.height);
 
         UploadedImageDTO dto = new UploadedImageDTO();
@@ -180,6 +220,17 @@ public class ImageStorageService {
             }
         }
         String filename = "rev_" + System.currentTimeMillis() + "_" + UUID.randomUUID().toString().substring(0, 6) + "." + ext;
+
+        if (telegramStorageService.isConfigured()) {
+            try {
+                String fileId = telegramStorageService.uploadImage(file.getBytes(), filename);
+                log.info("Stored review photo on Telegram Cloud: fileId={}", fileId);
+                return "/api/images/telegram/" + fileId;
+            } catch (Exception ex) {
+                log.warn("Telegram review upload failed, falling back to local disk: {}", ex.getMessage());
+            }
+        }
+
         Path targetPath = reviewUploadDir.resolve(filename);
         Files.copy(file.getInputStream(), targetPath);
         return "/api/reviews/images/" + filename;

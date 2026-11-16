@@ -53,4 +53,9 @@ xpressbees:
   warehouse-phone: "+91 9876543210"
   tracking-url-template: "https://shipmentv2.xpressbees.com/orders/tracking/{awb}"
 
+telegram:
+  bot-token: "${TELEGRAM_BOT_TOKEN:}"
+  chat-id: "${TELEGRAM_CHAT_ID:}"
+
+
 
