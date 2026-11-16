@@ -1,0 +1,17 @@
+com\daivatech\ecommerce\entity\UserAddress.class
+com\daivatech\ecommerce\service\ProfanityFilterService.class
+com\daivatech\ecommerce\controller\BrowsingHistoryController$HistoryItemDto.class
+com\daivatech\ecommerce\repository\ProductReviewRepository.class
+com\daivatech\ecommerce\repository\UserBrowsingHistoryRepository.class
+com\daivatech\ecommerce\controller\BrowsingHistoryController.class
+com\daivatech\ecommerce\service\UserAddressService.class
+com\daivatech\ecommerce\controller\AddressController.class
+com\daivatech\ecommerce\entity\WishlistItem.class
+com\daivatech\ecommerce\entity\UserBrowsingHistory.class
+com\daivatech\ecommerce\service\ProductReviewService.class
+com\daivatech\ecommerce\controller\WishlistController.class
+com\daivatech\ecommerce\entity\ProductReview.class
+com\daivatech\ecommerce\repository\UserAddressRepository.class
+com\daivatech\ecommerce\controller\ReviewController.class
+com\daivatech\ecommerce\service\ProductReviewService$1.class
+com\daivatech\ecommerce\repository\WishlistItemRepository.class

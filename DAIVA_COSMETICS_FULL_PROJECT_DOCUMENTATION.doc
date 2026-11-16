@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head>
+<meta charset="utf-8">
+<title>DAIVA COSMETICS - Full Technical & Functional Project Report</title>
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 15mm 20mm 15mm;
+  }
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: #2D241E;
+    line-height: 1.6;
+    background-color: #FFFFFF;
+    margin: 0;
+    padding: 20px 40px;
+  }
+  h1, h2, h3, h4, .serif {
+    font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
+    color: #1E1611;
+  }
+  .cover {
+    text-align: center;
+    padding: 60px 20px 40px 20px;
+    border-bottom: 3px double #C5B7A3;
+    margin-bottom: 40px;
+  }
+  .cover-badge {
+    display: inline-block;
+    background-color: #FFF1F2;
+    color: #BE123C;
+    border: 1px solid #FECDD3;
+    padding: 6px 16px;
+    border-radius: 9999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .cover h1 {
+    font-size: 38px;
+    margin: 10px 0 5px 0;
+    color: #1E1611;
+    letter-spacing: -0.5px;
+  }
+  .cover-subtitle {
+    font-size: 16px;
+    color: #6F5A48;
+    max-width: 650px;
+    margin: 0 auto 20px auto;
+    font-style: italic;
+  }
+  .meta-table {
+    margin: 25px auto 0 auto;
+    font-size: 12px;
+    color: #544336;
+  }
+  .meta-table td {
+    padding: 4px 14px;
+  }
+  h2 {
+    font-size: 22px;
+    border-bottom: 1.5px solid #EBE6DE;
+    padding-bottom: 8px;
+    margin-top: 40px;
+    color: #881337;
+  }
+  h3 {
+    font-size: 17px;
+    margin-top: 25px;
+    margin-bottom: 8px;
+    color: #3A2D24;
+  }
+  h4 {
+    font-size: 14px;
+    margin-top: 15px;
+    margin-bottom: 5px;
+    color: #544336;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  p, li {
+    font-size: 13px;
+    color: #3A2D24;
+  }
+  table.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+    font-size: 12px;
+  }
+  table.data-table th {
+    background-color: #FAF5EF;
+    color: #1E1611;
+    font-weight: 700;
+    text-align: left;
+    padding: 9px 12px;
+    border: 1px solid #DCD3C5;
+  }
+  table.data-table td {
+    padding: 8px 12px;
+    border: 1px solid #EBE6DE;
+    vertical-align: top;
+  }
+  table.data-table tr:nth-child(even) td {
+    background-color: #FAF9F6;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-right: 4px;
+  }
+  .badge-rose { background: #FFE4E6; color: #9F1239; }
+  .badge-emerald { background: #D1FAE5; color: #065F46; }
+  .badge-amber { background: #FEF3C7; color: #92400E; }
+  .badge-blue { background: #DBEAFE; color: #1E40AF; }
+  .badge-dark { background: #2C211A; color: #EDE4DA; }
+  .color-swatch {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-right: 6px;
+    border: 1px solid rgba(0,0,0,0.15);
+  }
+  .callout {
+    background-color: #FAF5EF;
+    border-left: 4px solid #BE123C;
+    padding: 12px 18px;
+    margin: 15px 0;
+    border-radius: 0 8px 8px 0;
+    font-size: 12.5px;
+  }
+  code {
+    background-color: #F5F3EF;
+    color: #881337;
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 11.5px;
+    font-family: Consolas, Monaco, monospace;
+  }
+  .page-break {
+    page-break-after: always;
+  }
+</style>
+</head>
+<body>
+
+<!-- COVER PAGE -->
+<div class="cover">
+  <div class="cover-badge">Comprehensive Architectural & Technical Specification</div>
+  <h1>DAIVA TECH - LUXE COSMETICS STOREFRONT & ERP</h1>
+  <div class="cover-subtitle">
+    An End-to-End Enterprise E-Commerce Platform Featuring Botanical Skincare, Intelligent Inventory, Real-Time Courier Logistics & Cryptographic Payment Processing
+  </div>
+  <table class="meta-table">
+    <tr><td><strong>Application Name:</strong> Daiva Cosmetics (Aura Luxe)</td><td><strong>Version:</strong> 2.4.0 Production Ready</td></tr>
+    <tr><td><strong>Backend Framework:</strong> Java 21 / Spring Boot 3.3.4</td><td><strong>Frontend Stack:</strong> React 18 / TypeScript / Vite / Tailwind CSS</td></tr>
+    <tr><td><strong>Database Engine:</strong> H2 Embedded Relational DB (Hibernate 6.5)</td><td><strong>Logistics Engine:</strong> Xpressbees Courier API v2</td></tr>
+    <tr><td><strong>Payment Gateway:</strong> Razorpay Sandbox + Cryptographic HMAC</td><td><strong>ERP Integration:</strong> Zoho Inventory & Books Sync</td></tr>
+    <tr><td><strong>Generated Date:</strong> November 2026</td><td><strong>Classification:</strong> Full Software Architecture & User Guide</td></tr>
+  </table>
+</div>
+
+<!-- SECTION 1: EXECUTIVE SUMMARY -->
+<h2>1. Executive Summary & Brand Philosophy</h2>
+<p>
+  <strong>Daiva Cosmetics (Aura Luxe Cosmetics)</strong> is a luxury, clean-beauty direct-to-consumer (D2C) e-commerce application designed to provide an ultra-high-end shopping experience inspired by international luxury skincare brands (such as Sephora, Aesop, and Charlotte Tilbury).
+</p>
+<p>
+  The project combines botanical luxury aesthetics with enterprise-grade supply chain infrastructure. Unlike traditional mock e-commerce storefronts, Daiva Cosmetics features deep backend integrations including cryptographic payment verification, batch-level inventory tracking with expiry dates, multi-address profile management, dynamic Xpressbees courier serviceability, Amazon-style verified customer photo reviews with profanity checking, and real-time customer browsing history.
+</p>
+
+<!-- SECTION 2: DESIGN SYSTEM, TYPOGRAPHY & COLOR PALETTE -->
+<h2>2. Design System: Typography, Colors & Themes</h2>
+<p>
+  The entire application is built on a custom design system meticulously calibrated for both <strong>Light Mode</strong> (Clean Luxury Spa aesthetic) and <strong>Dark Mode</strong> (Opulent Midnight Boudoir aesthetic).
+</p>
+
+<h3>2.1 Typography Hierarchy</h3>
+<table class="data-table">
+  <tr>
+    <th>Font Family</th>
+    <th>CSS Token</th>
+    <th>Usage Across Application</th>
+    <th>Styling Attributes</th>
+  </tr>
+  <tr>
+    <td><strong>Playfair Display</strong></td>
+    <td><code>font-serif</code></td>
+    <td>Headings (H1-H4), Product Titles, Brand Hero Text, Luxury Card Banners</td>
+    <td>High-contrast editorial serif, font weights 500-700, letter-spacing -0.02em</td>
+  </tr>
+  <tr>
+    <td><strong>Plus Jakarta Sans</strong></td>
+    <td><code>font-sans</code></td>
+    <td>Body Copy, Navigation Links, Form Labels, Button Actions, Tooltips</td>
+    <td>Geometric modern grotesque sans, font weights 400-600, anti-aliased</td>
+  </tr>
+  <tr>
+    <td><strong>Monospace / Consolas</strong></td>
+    <td><code>font-mono</code></td>
+    <td>SKUs, AWB Tracking Numbers, Order IDs, Razorpay Signatures, PIN Codes</td>
+    <td>Clean tabular layout for numbers and technical identifiers</td>
+  </tr>
+</table>
+
+<h3>2.2 Color Palette Specifications</h3>
+<table class="data-table">
+  <tr>
+    <th>Color Role</th>
+    <th>Hex Code</th>
+    <th>Visual Swatch</th>
+    <th>Description & Application</th>
+  </tr>
+  <tr>
+    <td><strong>Luxe Cream (Base Background)</strong></td>
+    <td><code>#FAF9F6</code></td>
+    <td><span class="color-swatch" style="background:#FAF9F6;"></span> #FAF9F6</td>
+    <td>Primary light mode background, evokes warm organic milk and linen texture.</td>
+  </tr>
+  <tr>
+    <td><strong>Luxe Sand (Cards & Inputs)</strong></td>
+    <td><code>#F5F3EF</code></td>
+    <td><span class="color-swatch" style="background:#F5F3EF;"></span> #F5F3EF</td>
+    <td>Card containers, dropdown surfaces, input backgrounds in light mode.</td>
+  </tr>
+  <tr>
+    <td><strong>Luxe Espresso (Primary Brand Text)</strong></td>
+    <td><code>#1E1611</code></td>
+    <td><span class="color-swatch" style="background:#1E1611;"></span> #1E1611</td>
+    <td>Deep espresso dark brown, used for top banner, primary CTAs, dark accents.</td>
+  </tr>
+  <tr>
+    <td><strong>Luxe Rose Berry (Brand Accent)</strong></td>
+    <td><code>#BE123C</code></td>
+    <td><span class="color-swatch" style="background:#BE123C;"></span> #BE123C</td>
+    <td>Buttons, active navigation markers, sale discount badges, wishlist hearts.</td>
+  </tr>
+  <tr>
+    <td><strong>Luxe Dark Background</strong></td>
+    <td><code>#120E0C</code></td>
+    <td><span class="color-swatch" style="background:#120E0C;"></span> #120E0C</td>
+    <td>Full canvas background in Dark Mode; deep warm black-brown tone.</td>
+  </tr>
+  <tr>
+    <td><strong>Luxe Dark Card Surface</strong></td>
+    <td><code>#1A1410</code></td>
+    <td><span class="color-swatch" style="background:#1A1410;"></span> #1A1410</td>
+    <td>Dark mode card bodies, modal dialogs, drawer panels.</td>
+  </tr>
+  <tr>
+    <td><strong>Luxe Dark Border</strong></td>
+    <td><code>#2C211A</code></td>
+    <td><span class="color-swatch" style="background:#2C211A;"></span> #2C211A</td>
+    <td>Subtle border separation between dark cards and headers.</td>
+  </tr>
+  <tr>
+    <td><strong>Luxe Dark Champagne Text</strong></td>
+    <td><code>#EDE4DA</code></td>
+    <td><span class="color-swatch" style="background:#EDE4DA;"></span> #EDE4DA</td>
+    <td>Primary legible body text in Dark Mode, softer than pure harsh white.</td>
+  </tr>
+  <tr>
+    <td><strong>Emerald Success</strong></td>
+    <td><code>#10B981</code></td>
+    <td><span class="color-swatch" style="background:#10B981;"></span> #10B981</td>
+    <td>Order confirmation, in-stock pills, paid tags, default address badges.</td>
+  </tr>
+  <tr>
+    <td><strong>Amber Warning / Rating</strong></td>
+    <td><code>#F59E0B</code></td>
+    <td><span class="color-swatch" style="background:#F59E0B;"></span> #F59E0B</td>
+    <td>5-star ratings, COD pending, low-stock warning chips, Home address tags.</td>
+  </tr>
+  <tr>
+    <td><strong>Cobalt Blue (Office Tag)</strong></td>
+    <td><code>#3B82F6</code></td>
+    <td><span class="color-swatch" style="background:#3B82F6;"></span> #3B82F6</td>
+    <td>Office address badge, Razorpay sandbox visual accent.</td>
+  </tr>
+</table>
+
+<!-- SECTION 3: SYSTEM ARCHITECTURE -->
+<h2>3. System Architecture & Tech Stack</h2>
+<div class="callout">
+  <strong>Decoupled Client-Server Architecture:</strong>
+  Vite React Single Page Application (SPA) communicating over REST JSON APIs with an enterprise Spring Boot backend, proxying development traffic smoothly and executing cryptographically signed actions.
+</div>
+
+<table class="data-table">
+  <tr>
+    <th>Layer</th>
+    <th>Technology Stack</th>
+    <th>Key Responsibilities</th>
+  </tr>
+  <tr>
+    <td><strong>Frontend SPA</strong></td>
+    <td>React 18.3, TypeScript 5.5, Vite 6, Tailwind CSS 3.4, Lucide Icons</td>
+    <td>Client-side routing, real-time context management, animations, responsive layouts, client validation.</td>
+  </tr>
+  <tr>
+    <td><strong>Backend API</strong></td>
+    <td>Java 21, Spring Boot 3.3.4, Spring Data JPA, Embedded Tomcat 10</td>
+    <td>REST endpoints, business validation, inventory transactions, cryptographic verification, audit logging.</td>
+  </tr>
+  <tr>
+    <td><strong>Database</strong></td>
+    <td>H2 Relational Database 2.2 (Disk File: <code>./data/cosmeticsdb.mv.db</code>)</td>
+    <td>ACID transaction persistence for Products, Batches, Orders, Users, Addresses, Reviews, History.</td>
+  </tr>
+  <tr>
+    <td><strong>Logistics Integration</strong></td>
+    <td>Xpressbees B2C Shipping API + Fallback Serviceability Matrix</td>
+    <td>Pincode serviceability check, AWB generation, multi-checkpoint tracking simulation.</td>
+  </tr>
+  <tr>
+    <td><strong>Payment Integration</strong></td>
+    <td>Razorpay API + Cryptographic HMAC-SHA256 Signature Verification</td>
+    <td>Order creation, UPI QR generation, card simulation, signature security verification.</td>
+  </tr>
+  <tr>
+    <td><strong>ERP / CRM</strong></td>
+    <td>Zoho Inventory & Books REST APIs</td>
+    <td>Item synchronization, sales order sync, real-time connection status monitoring.</td>
+  </tr>
+</table>
+
+<!-- SECTION 4: USER-FACING STOREFRONT PAGES & FEATURES -->
+<h2>4. Storefront Pages & Customer Features</h2>
+
+<h3>4.1 Header & Global Navigation (<code>Navbar.tsx</code>)</h3>
+<ul>
+  <li><strong>Top Value Banner:</strong> Sticky notification highlighting free shipping threshold (>₹999) and 100% clean botanical formulation pledge.</li>
+  <li><strong>Live Product Search:</strong> Debounced query search (250ms) querying backend database with instant thumbnail results and pricing.</li>
+  <li><strong>Active PLP Category Pointer:</strong> Visual indicator pointing directly to the currently active cosmetic category (Serums, Moisturizers, Lip Care, Sun Care, Cleansers).</li>
+  <li><strong>Theme Toggle:</strong> 1-click switcher between Light Mode (Luxe Cream) and Dark Mode (Espresso Dark), persisted in local storage.</li>
+  <li><strong>Quick Access Badges:</strong>
+    <ul>
+      <li><strong>User Profile:</strong> Fast access to account or direct Sign In modal.</li>
+      <li><strong>Saved Wishlist:</strong> Real-time animated counter of wishlisted cosmetics.</li>
+      <li><strong>Browsing History:</strong> Quick clock icon counter displaying recently viewed products.</li>
+      <li><strong>Cart Drawer Trigger:</strong> Shopping bag badge with animated bounce count.</li>
+    </ul>
+  </li>
+  <li><strong>Mobile Drawer Menu:</strong> Fully responsive off-canvas hamburger navigation.</li>
+</ul>
+
+<h3>4.2 Home Page (<code>HomePage.tsx</code>)</h3>
+<ul>
+  <li><strong>Hero Banner:</strong> High-fashion editorial photography showcasing seasonal botanical product drops with direct "Shop Clean Beauty" CTA.</li>
+  <li><strong>Brand Philosophy Badges:</strong> Certified Vegan, 100% Cruelty-Free, Dermatologically Tested, Ayurvedic & Swiss Botanicals.</li>
+  <li><strong>Curated Regimens:</strong> Dedicated product collections grouped by skin concerns (Radiance, Deep Hydration, Anti-Pollution).</li>
+  <li><strong>Best Sellers Showcase:</strong> Live grid pulling highest-rated cosmetics with real-time stock levels.</li>
+  <li><strong>Newsletter VIP Club:</strong> Subscriber capture form with coupon incentive.</li>
+</ul>
+
+<h3>4.3 Product Listing Page (<code>PLPPage.tsx</code>)</h3>
+<ul>
+  <li><strong>Multi-Dimensional Filters:</strong>
+    <ul>
+      <li><strong>Category Filter:</strong> Serums & Treatments, Moisturizers, Lip Care & Makeup, Sun Care, Cleansers.</li>
+      <li><strong>Skin Type Filter:</strong> All Skin Types, Oily/Acne-Prone, Dry/Sensitive, Combination.</li>
+      <li><strong>Price Range Slider:</strong> Real-time dynamic dual-range price filtering.</li>
+      <li><strong>Sorting Options:</strong> Newest, Price: Low to High, Price: High to Low, Highest Customer Rating.</li>
+    </ul>
+  </li>
+  <li><strong>Compact Luxury Product Cards:</strong> Optimized proportional card sizes preventing screen overflow.</li>
+  <li><strong>Easy Cart Inline Action:</strong> Adding to cart from PLP does NOT aggressively open the cart drawer; instead, it morphs into an animated increment/decrement quantity pill directly on the product card.</li>
+  <li><strong>Stock Badges:</strong> "Bestseller", "Featured", "Low Stock (<10 left)", and "Sold Out".</li>
+  <li><strong>Instant Wishlist Toggle:</strong> Floating heart button with immediate feedback.</li>
+</ul>
+
+<h3>4.4 Product Detail Page (<code>PDPPage.tsx</code>)</h3>
+<ul>
+  <li><strong>Multi-Angle Gallery & Lightbox:</strong> Zoom-enabled product gallery with high-resolution modal preview.</li>
+  <li><strong>Botanical Formula Breakdown:</strong> Accordion tabs detailing Key Active Ingredients, Clinical Benefits, and How to Apply.</li>
+  <li><strong>Amazon-Style Verified Customer Reviews:</strong>
+    <ul>
+      <li>Rating breakdown distribution (5-star down to 1-star percentage bars).</li>
+      <li>Verified Buyer badges ensuring integrity.</li>
+      <li>Customer photo attachments with full-screen lightbox preview.</li>
+      <li>Client-side and backend profanity detection stopping abusive submissions.</li>
+    </ul>
+  </li>
+  <li><strong>Complementary Ritual Recommendations:</strong> Algorithmic product pairing suggestions based on complementary subcategories.</li>
+  <li><strong>Recently Viewed Cosmetics Carousel:</strong> Automatically tracks browsing history and displays products previously inspected.</li>
+</ul>
+
+<h3>4.5 Shopping Bag & Cart Drawer (<code>CartDrawer.tsx</code> & <code>CartPage.tsx</code>)</h3>
+<ul>
+  <li><strong>No-Scroll Background Lock:</strong> Fixes webpage background scrolling when customer navigates inside the drawer.</li>
+  <li><strong>Complimentary Shipping Meter:</strong> Dynamic progress bar showing how much more is needed to reach the ₹999 free shipping goal.</li>
+  <li><strong>Quantity Controls & Deletion:</strong> 1-click stepper with automatic total recalculation.</li>
+  <li><strong>Summary Calculation:</strong> Subtotal, GST taxes (18% inclusive/breakdown), shipping fee calculation, and grand total.</li>
+</ul>
+
+<h3>4.6 Saved Wishlist (<code>WishlistPage.tsx</code>)</h3>
+<ul>
+  <li>Grid of saved covetable cosmetics stored in the database for logged-in users and cached locally for guests.</li>
+  <li><strong>Move to Bag:</strong> 1-click migration from wishlist straight into the active cart.</li>
+  <li><strong>Move All to Bag:</strong> Batch migration tool automatically moving all in-stock items with one click.</li>
+</ul>
+
+<h3>4.7 Customer Browsing History (<code>HistoryPage.tsx</code>)</h3>
+<ul>
+  <li>Persistent viewing history saved both in database table <code>user_browsing_history</code> and <code>localStorage</code>.</li>
+  <li><strong>Relative Timestamps:</strong> Displays "Just now", "15m ago", "2h ago", "Yesterday".</li>
+  <li><strong>Individual & Bulk Clearing:</strong> Remove individual cards or clear entire history with 1 click.</li>
+  <li><strong>Quick Purchase Actions:</strong> Add directly to cart or save to wishlist from browsing history.</li>
+</ul>
+
+<h3>4.8 Multi-Address Profile Portal (<code>ProfilePage.tsx</code>)</h3>
+<ul>
+  <li><strong>Multi-Address Model:</strong>
+    <ul>
+      <li>Supports <code>HOME</code>, <code>OFFICE</code>, and <code>OTHER</code> address types with distinctive visual color badges.</li>
+      <li>1-click <strong>Set as Default</strong> address, ensuring future orders pre-select this address automatically.</li>
+      <li>Full CRUD: Add New Address modal, Edit existing address, and Delete.</li>
+      <li>Automatic synchronization with user profile entity in backend.</li>
+    </ul>
+  </li>
+  <li><strong>Tabbed Customer Dashboard:</strong>
+    <ul>
+      <li><strong>Orders Tab:</strong> Full history of placed orders, payment status, tracking buttons, and verified review writer.</li>
+      <li><strong>Recently Viewed Tab:</strong> In-portal access to recently browsed products.</li>
+    </ul>
+  </li>
+  <li><strong>Animated Live Courier Journey (Xpressbees Tracking):</strong>
+    <ul>
+      <li>Real-time visual timeline: Order Placed → Packed & Manifested → In Transit → Out for Delivery → Delivered.</li>
+      <li>Animated bouncing delivery van with rolling wheels and road dash animations.</li>
+    </ul>
+  </li>
+</ul>
+
+<h3>4.9 Checkout & Payment Confirmation (<code>CheckoutPage.tsx</code>)</h3>
+<ul>
+  <li><strong>Dynamic Delivery Destination:</strong> Eliminates hardcoded fake addresses. Displays user's saved Home and Office addresses as 1-click selectable radio cards.</li>
+  <li><strong>Add Address Inline:</strong> "+ Add New Address" modal dialog right inside checkout without leaving the payment flow.</li>
+  <li><strong>Live Pincode Serviceability (Xpressbees):</strong> Automatically verifies 6-digit Indian PIN codes, calculating courier delivery days, COD eligibility, and express routes.</li>
+  <li><strong>Payment Options:</strong>
+    <ul>
+      <li><strong>Cash on Delivery (COD):</strong> Instant order confirmation with pending payment status.</li>
+      <li><strong>Razorpay Live & Sandbox:</strong> Integrated Razorpay checkout with UPI (Google Pay, PhonePe, Paytm, CRED), Credit/Debit Cards, and NetBanking.</li>
+      <li><strong>Interactive Razorpay Simulator:</strong> Built-in sandbox modal simulating authentic UPI QR scans and card authorizations with real cryptographic HMAC-SHA256 signature verification.</li>
+    </ul>
+  </li>
+  <li><strong>Digital Order Invoice:</strong> Downloadable and printable order confirmation receipt.</li>
+</ul>
+
+<!-- SECTION 5: ADMIN MANAGEMENT & CONTROL PORTAL -->
+<h2>5. Admin Portal: Capabilities & Controls (<code>AdminPage.tsx</code>)</h2>
+<p>
+  Accessed via <code>#admin</code> by users with the <code>ADMIN</code> role. A comprehensive back-office operations suite designed for inventory managers, store administrators, and logistics dispatchers.
+</p>
+
+<h3>5.1 Executive KPI Metrics Dashboard</h3>
+<table class="data-table">
+  <tr>
+    <th>Metric Card</th>
+    <th>Data Source / Calculation</th>
+    <th>Operational Purpose</th>
+  </tr>
+  <tr>
+    <td><strong>Gross Revenue</strong></td>
+    <td>Sum of all completed orders (INR)</td>
+    <td>Tracks total top-line sales volume.</td>
+  </tr>
+  <tr>
+    <td><strong>Net Revenue</strong></td>
+    <td>Gross Revenue minus total processed refunds</td>
+    <td>Accurate cash flow after returns and cancellations.</td>
+  </tr>
+  <tr>
+    <td><strong>Total Orders Placed</strong></td>
+    <td>Count of all orders in system</td>
+    <td>Overall order throughput.</td>
+  </tr>
+  <tr>
+    <td><strong>Low Stock Alerts</strong></td>
+    <td>Count of products with stock &lt; 10 units</td>
+    <td>Prevents stockouts; triggers immediate replenishment.</td>
+  </tr>
+  <tr>
+    <td><strong>Active Return / Refunds</strong></td>
+    <td>Sum of refunds executed through Razorpay</td>
+    <td>Tracks customer satisfaction and return rates.</td>
+  </tr>
+</table>
+
+<h3>5.2 Product Catalog & Media Management</h3>
+<ul>
+  <li><strong>Product Creation & Modification:</strong> Create, edit, and deactivate cosmetic SKUs (Name, Brand, Category, Subcategory, Price, MRP, Discount, Volume, Skin Type, Key Ingredients, How to Use).</li>
+  <li><strong>Integrated Multi-Image Upload:</strong> Upload high-resolution product photos directly to the server. Images are validated, uniquely slugified, and stored in <code>/uploads/products/</code> with instant web preview.</li>
+  <li><strong>Catalog Status Toggle:</strong> One-click active/inactive toggle allowing admins to temporarily delist products without deleting database records.</li>
+</ul>
+
+<h3>5.3 Batch-Level Inventory & Expiry Tracking (Pharma & Cosmetic Compliance)</h3>
+<ul>
+  <li><strong>Granular Batch Management:</strong> Each product can have multiple production batches with unique batch numbers (e.g., <code>BAT-LUM-2026-01</code>).</li>
+  <li><strong>Cost Price & Expiry Tracking:</strong> Record exact cost price per batch, expiry dates, supplier names, and notes.</li>
+  <li><strong>Automatic FIFO Deduction:</strong> When orders are placed, the oldest unexpired batch is prioritized for stock deduction.</li>
+  <li><strong>Stock Movements Audit Trail:</strong> Every manual stock addition, reduction, or sale generates an immutable audit record in the database recording who made the change, previous stock, quantity delta, and timestamp.</li>
+</ul>
+
+<h3>5.4 Order Fulfillment, Logistics & Dispatch</h3>
+<ul>
+  <li><strong>Comprehensive Order Ledger:</strong> Filter orders by status (PENDING, PAID, SHIPPED, DELIVERED, CANCELLED, REFUNDED), customer search, or order reference ID.</li>
+  <li><strong>1-Click Xpressbees AWB Dispatch:</strong> Clicking "Generate AWB" calls the Xpressbees courier API, books the shipment, receives a valid Air Waybill (AWB) tracking number, and assigns the courier status.</li>
+  <li><strong>Thermal Shipping Label & Manifest Generation:</strong> Generate printable packing slips and shipping manifests with customer delivery details and item barcodes.</li>
+  <li><strong>Instant Refund Engine:</strong> Execute partial or full refunds directly through Razorpay API. Automatically marks order as REFUNDED, records refund ID, and updates revenue metrics.</li>
+</ul>
+
+<h3>5.5 Customer Reviews Moderation</h3>
+<ul>
+  <li><strong>Moderation Queue:</strong> View all customer ratings and photo reviews.</li>
+  <li><strong>Profanity & Sentiment Inspection:</strong> Inspect flagged reviews containing vulgarity or toxic terms.</li>
+  <li><strong>Approve / Reject Action:</strong> One-click approval publishes the review to the public storefront PDP; rejection removes it from display.</li>
+</ul>
+
+<h3>5.6 ERP & Integration Hub (Zoho, Razorpay & Xpressbees)</h3>
+<ul>
+  <li><strong>Zoho Inventory / Books Sync:</strong> View live OAuth2 token connection status. Trigger 1-click batch synchronization of sales orders and products between the store and Zoho ERP.</li>
+  <li><strong>Razorpay Health Monitor:</strong> Verify live key credentials, webhook signature status, and audit gateway logs.</li>
+  <li><strong>Xpressbees Origin Hub:</strong> Configure origin warehouse address (Bengaluru Hub, Indiranagar), contact numbers, and default courier service levels.</li>
+</ul>
+
+<!-- SECTION 6: BACKEND REST APIS -->
+<h2>6. Complete Backend REST API Reference</h2>
+<table class="data-table">
+  <tr>
+    <th>Method & Route</th>
+    <th>Controller</th>
+    <th>Payload / Params</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td><code>GET /api/products</code></td>
+    <td>ProductController</td>
+    <td>subCategory, skinType, minPrice, maxPrice, sortBy</td>
+    <td>Filtered product catalog list</td>
+  </tr>
+  <tr>
+    <td><code>GET /api/products/slug/{slug}</code></td>
+    <td>ProductController</td>
+    <td>slug (string)</td>
+    <td>Retrieve product by URL slug</td>
+  </tr>
+  <tr>
+    <td><code>POST /api/auth/login</code></td>
+    <td>AuthController</td>
+    <td>{ email, password }</td>
+    <td>Authenticate user & return profile details</td>
+  </tr>
+  <tr>
+    <td><code>GET /api/users/{userId}/addresses</code></td>
+    <td>AddressController</td>
+    <td>userId</td>
+    <td>Fetch all saved addresses (Home, Office, Other)</td>
+  </tr>
+  <tr>
+    <td><code>POST /api/users/{userId}/addresses</code></td>
+    <td>AddressController</td>
+    <td>Address entity fields</td>
+    <td>Create new delivery address</td>
+  </tr>
+  <tr>
+    <td><code>PUT /api/users/{id}/addresses/{addrId}/default</code></td>
+    <td>AddressController</td>
+    <td>id, addrId</td>
+    <td>Set address as default and sync to user</td>
+  </tr>
+  <tr>
+    <td><code>POST /api/orders</code></td>
+    <td>OrderController</td>
+    <td>Order payload with items & address</td>
+    <td>Create order, deduct stock, sync to Zoho & courier</td>
+  </tr>
+  <tr>
+    <td><code>POST /api/payments/razorpay/verify</code></td>
+    <td>PaymentController</td>
+    <td>razorpay_order_id, payment_id, signature</td>
+    <td>Cryptographic HMAC-SHA256 signature verification</td>
+  </tr>
+  <tr>
+    <td><code>POST /api/payments/razorpay/simulate-mock</code></td>
+    <td>PaymentController</td>
+    <td>orderId</td>
+    <td>Generate authentic test payment & HMAC signature</td>
+  </tr>
+  <tr>
+    <td><code>GET /api/shipping/serviceability/{pin}</code></td>
+    <td>ShippingController</td>
+    <td>pincode (6 digits)</td>
+    <td>Query Xpressbees delivery capability & ETA</td>
+  </tr>
+  <tr>
+    <td><code>GET /api/history/{userId}</code></td>
+    <td>BrowsingHistoryController</td>
+    <td>userId</td>
+    <td>Fetch recently viewed products ordered by timestamp</td>
+  </tr>
+  <tr>
+    <td><code>POST /api/history</code></td>
+    <td>BrowsingHistoryController</td>
+    <td>{ userId, productId }</td>
+    <td>Upsert viewed product in user browsing history</td>
+  </tr>
+  <tr>
+    <td><code>GET /api/wishlist/{userId}</code></td>
+    <td>WishlistController</td>
+    <td>userId</td>
+    <td>Fetch customer wishlist products</td>
+  </tr>
+  <tr>
+    <td><code>POST /api/wishlist/toggle</code></td>
+    <td>WishlistController</td>
+    <td>{ userId, productId }</td>
+    <td>Toggle item in/out of wishlist</td>
+  </tr>
+  <tr>
+    <td><code>GET /api/admin/metrics</code></td>
+    <td>AdminController</td>
+    <td>None</td>
+    <td>Calculate high-level sales and operational KPIs</td>
+  </tr>
+  <tr>
+    <td><code>POST /api/admin/upload/product-image</code></td>
+    <td>AdminController</td>
+    <td>Multipart Form (file)</td>
+    <td>Save product image and return static URL</td>
+  </tr>
+  <tr>
+    <td><code>POST /api/admin/orders/{id}/refund</code></td>
+    <td>AdminController</td>
+    <td>{ amount, reason }</td>
+    <td>Process instant refund via Razorpay API</td>
+  </tr>
+</table>
+
+<!-- SECTION 7: SECURITY & COMPLIANCE -->
+<h2>7. Security, Reliability & Compliance Features</h2>
+<ul>
+  <li><strong>Cryptographic Signature Verification:</strong> All online payments verify the HMAC-SHA256 hash using the secret API key before marking an order as PAID. This eliminates tampering and simulated falsified payment requests.</li>
+  <li><strong>Strict Profanity & Content Filtering:</strong> Reviews are filtered against comprehensive abusive word lists on both frontend and backend to protect brand integrity.</li>
+  <li><strong>Role-Based Access Control (RBAC):</strong> Admin dashboard endpoints are restricted from general customer access.</li>
+  <li><strong>Safe Stock Locking & Audit Trails:</strong> Inventory decrements occur inside Spring transactional boundaries (<code>@Transactional</code>), eliminating race conditions during flash sales.</li>
+  <li><strong>Safe H2 Embedded Database Config:</strong> Configured with <code>DB_CLOSE_DELAY=-1</code> preventing lock corruption, with seamless compatibility for production migration to PostgreSQL or MySQL.</li>
+</ul>
+
+<!-- SECTION 8: CONCLUSION -->
+<h2>8. Conclusion & Future Roadmap</h2>
+<p>
+  Daiva Cosmetics represents a turnkey, production-grade direct-to-consumer e-commerce solution that unifies aesthetic luxury design with robust logistics and financial infrastructure.
+</p>
+<p>
+  <strong>Recommended Next Production Milestones:</strong>
+</p>
+<ol>
+  <li>Deploy frontend to <strong>Vercel</strong> or <strong>Netlify</strong> edge CDN.</li>
+  <li>Deploy Spring Boot backend to <strong>Render</strong>, <strong>Railway</strong>, or an <strong>AWS EC2</strong> instance.</li>
+  <li>Migrate embedded H2 database to managed <strong>PostgreSQL</strong> (e.g. Supabase, Neon, or AWS RDS).</li>
+  <li>Connect live Razorpay merchant credentials and production Xpressbees courier API credentials.</li>
+</ol>
+
+<hr style="border: none; border-top: 1px solid #DCD3C5; margin-top: 50px;" />
+<p style="text-align: center; font-size: 11px; color: #8B755E;">
+  Daiva Cosmetics &copy; 2026. All Rights Reserved. Engineered with Pride by Daiva Tech.
+</p>
+
+</body>
+</html>

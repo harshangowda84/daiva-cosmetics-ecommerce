@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#FAF9F6] text-neutral-800 antialiased transition-colors duration-200;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  html.dark body {
+    background-color: #140F0D;
+    color: #EDE4DA;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1ede7;
+}
+::-webkit-scrollbar-thumb {
+  background: #c5b7a3;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a8947d;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #18120e;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #44372e;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #635144;
+}
+
+/* Fluid Animated Tracking Keyframes */
+@keyframes truckBounce {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-2.5px);
+  }
+}
+
+@keyframes wheelSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes roadDash {
+  to {
+    stroke-dashoffset: -40;
+  }
+}
+
+@keyframes speedWind {
+  0%, 100% {
+    opacity: 0.2;
+    transform: translateX(0);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateX(-4px);
+  }
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.4), 0 0 20px rgba(16, 185, 129, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(16, 185, 129, 0.7), 0 0 30px rgba(16, 185, 129, 0.35);
+  }
+}
+
+.animate-truck-bounce {
+  animation: truckBounce 1.2s ease-in-out infinite;
+}
+
+.animate-wheel-spin {
+  animation: wheelSpin 0.7s linear infinite;
+}
+
+.animate-speed-wind {
+  animation: speedWind 0.8s ease-in-out infinite;
+}
+
+.animate-road-dash {
+  stroke-dasharray: 6 6;
+  animation: roadDash 1s linear infinite;
+}
+
+.animate-glow-pulse {
+  animation: glowPulse 2s ease-in-out infinite;
+}

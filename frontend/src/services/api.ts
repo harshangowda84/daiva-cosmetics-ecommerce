@@ -1,0 +1,717 @@
+import {
+  Product,
+  CustomerOrder,
+  ZohoStatus,
+  User,
+  UploadedImageInfo,
+  StockMovement,
+  ProductBatch,
+  RazorpayOrderResponse,
+  PaymentVerificationResponse,
+  MockPaymentSimulationResponse,
+  UserBrowsingHistoryItem,
+} from '../types';
+
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
+export const api = {
+  // Products
+  async getProducts(params?: {
+    subCategory?: string;
+    skinType?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    sortBy?: string;
+  }): Promise<Product[]> {
+    const query = new URLSearchParams();
+    if (params?.subCategory && params.subCategory !== 'All') {
+      try {
+        query.append('subCategory', decodeURIComponent(params.subCategory));
+      } catch {
+        query.append('subCategory', params.subCategory);
+      }
+    }
+    if (params?.skinType && params.skinType !== 'All' && params.skinType !== 'All Skin Types') {
+      try {
+        query.append('skinType', decodeURIComponent(params.skinType));
+      } catch {
+        query.append('skinType', params.skinType);
+      }
+    }
+    if (params?.minPrice !== undefined) query.append('minPrice', params.minPrice.toString());
+    if (params?.maxPrice !== undefined) query.append('maxPrice', params.maxPrice.toString());
+    if (params?.sortBy) query.append('sortBy', params.sortBy);
+
+    const res = await fetch(`${BASE_URL}/products?${query.toString()}`);
+    if (!res.ok) throw new Error('Failed to fetch products');
+    return res.json();
+  },
+
+  async getProductBySlug(slug: string): Promise<Product> {
+    const res = await fetch(`${BASE_URL}/products/slug/${slug}`);
+    if (!res.ok) throw new Error('Product not found');
+    return res.json();
+  },
+
+  async searchProducts(query: string): Promise<Product[]> {
+    const res = await fetch(`${BASE_URL}/products/search?q=${encodeURIComponent(query)}`);
+    if (!res.ok) throw new Error('Search failed');
+    return res.json();
+  },
+
+  async getFeaturedProducts(): Promise<Product[]> {
+    const res = await fetch(`${BASE_URL}/products/featured`);
+    if (!res.ok) throw new Error('Failed to fetch featured products');
+    return res.json();
+  },
+
+  async getCategories(): Promise<{ mainCategory: string; subCategories: string[]; skinTypes: string[] }> {
+    const res = await fetch(`${BASE_URL}/categories`);
+    if (!res.ok) throw new Error('Failed to fetch categories');
+    return res.json();
+  },
+
+  // Orders
+  async placeOrder(payload: any): Promise<CustomerOrder> {
+    const res = await fetch(`${BASE_URL}/orders`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to place order');
+    }
+    return res.json();
+  },
+
+  async getOrderByNumber(orderNumber: string): Promise<CustomerOrder> {
+    const res = await fetch(`${BASE_URL}/orders/${orderNumber}`);
+    if (!res.ok) throw new Error('Order not found');
+    return res.json();
+  },
+
+  async getUserOrders(userId: number): Promise<CustomerOrder[]> {
+    const res = await fetch(`${BASE_URL}/orders/user/${userId}`);
+    if (!res.ok) throw new Error('Failed to fetch user orders');
+    return res.json();
+  },
+
+  // Auth
+  async login(payload: { email: string; password: string }): Promise<User> {
+    const res = await fetch(`${BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Login failed');
+    }
+    return res.json();
+  },
+
+  async register(payload: { fullName: string; email: string; password: string; phone?: string }): Promise<User> {
+    const res = await fetch(`${BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Registration failed');
+    }
+    return res.json();
+  },
+
+  async getProfile(id: number): Promise<User> {
+    const res = await fetch(`${BASE_URL}/auth/profile/${id}`);
+    if (!res.ok) throw new Error('Failed to fetch profile');
+    return res.json();
+  },
+
+  async updateProfile(id: number, payload: Partial<User>): Promise<User> {
+    const res = await fetch(`${BASE_URL}/auth/profile/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error('Failed to update profile');
+    return res.json();
+  },
+
+  // User Addresses
+  async getUserAddresses(userId: number): Promise<import('../types').UserAddress[]> {
+    const res = await fetch(`${BASE_URL}/users/${userId}/addresses`);
+    if (!res.ok) throw new Error('Failed to fetch addresses');
+    return res.json();
+  },
+
+  async createUserAddress(userId: number, address: Partial<import('../types').UserAddress>): Promise<import('../types').UserAddress> {
+    const res = await fetch(`${BASE_URL}/users/${userId}/addresses`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(address),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to create address');
+    }
+    return res.json();
+  },
+
+  async updateUserAddress(userId: number, addressId: number, address: Partial<import('../types').UserAddress>): Promise<import('../types').UserAddress> {
+    const res = await fetch(`${BASE_URL}/users/${userId}/addresses/${addressId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(address),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to update address');
+    }
+    return res.json();
+  },
+
+  async deleteUserAddress(userId: number, addressId: number): Promise<{ success: boolean; message?: string }> {
+    const res = await fetch(`${BASE_URL}/users/${userId}/addresses/${addressId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to delete address');
+    }
+    return res.json();
+  },
+
+  async setDefaultUserAddress(userId: number, addressId: number): Promise<import('../types').UserAddress> {
+    const res = await fetch(`${BASE_URL}/users/${userId}/addresses/${addressId}/default`, {
+      method: 'PUT',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to set default address');
+    }
+    return res.json();
+  },
+
+  // Admin & Zoho
+  async getAdminProducts(): Promise<Product[]> {
+    const res = await fetch(`${BASE_URL}/admin/products`);
+    if (!res.ok) throw new Error('Failed to fetch admin products');
+    return res.json();
+  },
+
+  async createAdminProduct(product: Partial<Product>): Promise<Product> {
+    const res = await fetch(`${BASE_URL}/admin/products`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(product),
+    });
+    if (!res.ok) {
+      let errorMsg = 'Failed to create product';
+      try {
+        const err = await res.json();
+        errorMsg = err.error || err.message || errorMsg;
+      } catch {
+        const text = await res.text();
+        if (text) errorMsg = text;
+      }
+      throw new Error(errorMsg);
+    }
+    return res.json();
+  },
+
+  async updateAdminProduct(id: number, product: Partial<Product>): Promise<Product> {
+    const res = await fetch(`${BASE_URL}/admin/products/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(product),
+    });
+    if (!res.ok) {
+      let errorMsg = 'Failed to update product';
+      try {
+        const err = await res.json();
+        errorMsg = err.error || err.message || errorMsg;
+      } catch {
+        const text = await res.text();
+        if (text) errorMsg = text;
+      }
+      throw new Error(errorMsg);
+    }
+    return res.json();
+  },
+
+  async updateAdminStock(id: number, stockQuantity: number): Promise<Product> {
+    const res = await fetch(`${BASE_URL}/admin/products/${id}/stock`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stockQuantity }),
+    });
+    if (!res.ok) throw new Error('Failed to update stock');
+    return res.json();
+  },
+
+  async getAdminOrders(): Promise<CustomerOrder[]> {
+    const res = await fetch(`${BASE_URL}/admin/orders`);
+    if (!res.ok) throw new Error('Failed to fetch admin orders');
+    return res.json();
+  },
+
+  async retryZohoSync(orderId: number): Promise<CustomerOrder> {
+    const res = await fetch(`${BASE_URL}/admin/orders/${orderId}/retry-zoho`, {
+      method: 'POST',
+    });
+    if (!res.ok) throw new Error('Failed to retry Zoho sync');
+    return res.json();
+  },
+
+  async getZohoStatus(): Promise<ZohoStatus> {
+    const res = await fetch(`${BASE_URL}/admin/zoho/status`);
+    if (!res.ok) throw new Error('Failed to fetch Zoho status');
+    return res.json();
+  },
+
+  async syncZohoCatalog(): Promise<{ success: boolean; message: string; syncedCount: number }> {
+    const res = await fetch(`${BASE_URL}/admin/zoho/sync`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Zoho sync failed');
+    }
+    return res.json();
+  },
+
+  async syncSingleProduct(id: number): Promise<{ success: boolean; zohoItemId: string; message: string }> {
+    const res = await fetch(`${BASE_URL}/admin/products/${id}/sync-zoho`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to sync product to Zoho');
+    }
+    return res.json();
+  },
+
+  async pushProductsToZoho(): Promise<{ success: boolean; message: string; pushedCount: number }> {
+    const res = await fetch(`${BASE_URL}/admin/zoho/push`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Pushing to Zoho failed');
+    }
+    return res.json();
+  },
+
+  async uploadProductImages(files: File[]): Promise<UploadedImageInfo[]> {
+    const formData = new FormData();
+    for (let i = 0; i < files.length; i++) {
+      formData.append('files', files[i]);
+    }
+    const res = await fetch(`${BASE_URL}/admin/products/upload-images`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Image upload failed');
+    }
+    const data = await res.json();
+    return data.images || [];
+  },
+
+  async uploadSingleProductImage(file: File): Promise<UploadedImageInfo> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${BASE_URL}/admin/products/upload-image`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Image upload failed');
+    }
+    return res.json();
+  },
+
+  // Stock Movement & Audit Trail
+  async getProductStockHistory(productId: number): Promise<StockMovement[]> {
+    const res = await fetch(`${BASE_URL}/admin/products/${productId}/stock-history`);
+    if (!res.ok) throw new Error('Failed to fetch product stock history');
+    return res.json();
+  },
+
+  async getAllStockHistory(): Promise<StockMovement[]> {
+    const res = await fetch(`${BASE_URL}/admin/stock-history`);
+    if (!res.ok) throw new Error('Failed to fetch stock movement history');
+    return res.json();
+  },
+
+  async adjustProductStock(
+    productId: number,
+    payload: {
+      delta?: number;
+      targetStock?: number;
+      isAdditive: boolean;
+      notes?: string;
+      performedBy?: string;
+      movementType?: string;
+    }
+  ): Promise<{ success: boolean; product: Product; movement: StockMovement }> {
+    const res = await fetch(`${BASE_URL}/admin/products/${productId}/adjust-stock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to adjust stock');
+    }
+    return res.json();
+  },
+
+  // Batch-Level Inventory
+  async getProductBatches(productId: number): Promise<ProductBatch[]> {
+    const res = await fetch(`${BASE_URL}/admin/products/${productId}/batches`);
+    if (!res.ok) throw new Error('Failed to fetch product batches');
+    return res.json();
+  },
+
+  async getBatchByNumber(batchNumber: string): Promise<ProductBatch> {
+    const res = await fetch(`${BASE_URL}/admin/batches/${encodeURIComponent(batchNumber)}`);
+    if (!res.ok) throw new Error('Batch not found: ' + batchNumber);
+    return res.json();
+  },
+
+  async searchBatches(query?: string): Promise<ProductBatch[]> {
+    const res = await fetch(`${BASE_URL}/admin/batches/search?q=${encodeURIComponent(query || '')}`);
+    if (!res.ok) throw new Error('Failed to search batches');
+    return res.json();
+  },
+
+  async createProductBatch(
+    productId: number,
+    payload: {
+      quantity: number;
+      customBatchNumber?: string;
+      costPrice?: number;
+      expiryDate?: string;
+      supplierName?: string;
+      notes?: string;
+      performedBy?: string;
+    }
+  ): Promise<{ success: boolean; batch: ProductBatch; product: Product }> {
+    const res = await fetch(`${BASE_URL}/admin/products/${productId}/batches`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to create batch');
+    }
+    return res.json();
+  },
+
+  async adjustBatch(
+    batchNumber: string,
+    payload: {
+      adjustmentType: 'DEFECTIVE' | 'CORRECTION' | 'ADD_TO_BATCH';
+      quantity: number;
+      reason?: string;
+      performedBy?: string;
+    }
+  ): Promise<{ success: boolean; batch: ProductBatch; product: Product; movement: StockMovement }> {
+    const res = await fetch(`${BASE_URL}/admin/batches/${encodeURIComponent(batchNumber)}/adjust`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to adjust batch');
+    }
+    return res.json();
+  },
+
+  // Razorpay Payment APIs
+  async getPaymentConfig(): Promise<{ keyId: string; currency: string; companyName: string; isMockMode: boolean }> {
+    const res = await fetch(`${BASE_URL}/payments/config`);
+    if (!res.ok) {
+      throw new Error('Failed to fetch payment configuration');
+    }
+    return res.json();
+  },
+
+  async createRazorpayOrder(amount: number, receipt?: string): Promise<RazorpayOrderResponse> {
+    const res = await fetch(`${BASE_URL}/payments/create-order`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount, receipt }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to initialize payment order');
+    }
+    return res.json();
+  },
+
+  async verifyPayment(
+    orderId: string,
+    paymentId: string,
+    signature: string
+  ): Promise<PaymentVerificationResponse> {
+    const res = await fetch(`${BASE_URL}/payments/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId, paymentId, signature }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Cryptographic payment verification failed');
+    }
+    return res.json();
+  },
+
+  async simulateMockPayment(orderId: string): Promise<MockPaymentSimulationResponse> {
+    const res = await fetch(`${BASE_URL}/payments/mock-simulate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Mock payment simulation failed');
+    }
+    return res.json();
+  },
+
+  // Razorpay Active Polling & Refund
+  async checkOrderStatus(orderId: string): Promise<{ paid: boolean; paymentId?: string; status?: string; method?: string }> {
+    const res = await fetch(`${BASE_URL}/payments/order-status/${encodeURIComponent(orderId)}`);
+    if (!res.ok) {
+      return { paid: false, status: 'error' };
+    }
+    return res.json();
+  },
+
+  async refundOrder(orderId: number, reason?: string): Promise<CustomerOrder> {
+    const res = await fetch(`${BASE_URL}/admin/orders/${orderId}/refund`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason || 'Customer requested refund' }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to refund order');
+    }
+    return res.json();
+  },
+
+  // Xpressbees Logistics APIs
+  async checkPincodeServiceability(pincode: string): Promise<import('../types').ShippingServiceability> {
+    const res = await fetch(`${BASE_URL}/shipping/serviceability?pincode=${encodeURIComponent(pincode)}`);
+    if (!res.ok) {
+      throw new Error('Failed to verify delivery pincode');
+    }
+    return res.json();
+  },
+
+  async manifestShipment(orderId: number): Promise<CustomerOrder> {
+    const res = await fetch(`${BASE_URL}/shipping/orders/${orderId}/manifest`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to dispatch shipment with Xpressbees');
+    }
+    return res.json();
+  },
+
+  async trackOrderShipment(orderId: number): Promise<import('../types').ShipmentTracking> {
+    const res = await fetch(`${BASE_URL}/shipping/orders/${orderId}/track`);
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Tracking details not found');
+    }
+    return res.json();
+  },
+
+  async trackAwbShipment(awb: string): Promise<import('../types').ShipmentTracking> {
+    const res = await fetch(`${BASE_URL}/shipping/track/${encodeURIComponent(awb)}`);
+    if (!res.ok) {
+      throw new Error('Tracking details not found');
+    }
+    return res.json();
+  },
+
+  // Customer Reviews & Ratings APIs
+  async getProductReviews(productId: number): Promise<import('../types').ReviewSummaryResponse> {
+    const res = await fetch(`${BASE_URL}/reviews/product/${productId}`);
+    if (!res.ok) {
+      throw new Error('Failed to fetch product reviews');
+    }
+    return res.json();
+  },
+
+  async checkReviewEligibility(userId: number | undefined, productId: number): Promise<import('../types').ReviewEligibilityResponse> {
+    const params = new URLSearchParams({ productId: productId.toString() });
+    if (userId) {
+      params.append('userId', userId.toString());
+    }
+    const res = await fetch(`${BASE_URL}/reviews/eligibility?${params.toString()}`);
+    if (!res.ok) {
+      return { eligible: false, reason: 'Could not verify purchase status' };
+    }
+    return res.json();
+  },
+
+  async getUserReviews(userId: number): Promise<import('../types').ProductReview[]> {
+    const res = await fetch(`${BASE_URL}/reviews/user/${userId}`);
+    if (!res.ok) {
+      return [];
+    }
+    return res.json();
+  },
+
+  async uploadReviewImage(file: File): Promise<{ imageUrl: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${BASE_URL}/reviews/upload-image`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to upload review image');
+    }
+    return res.json();
+  },
+
+  async submitReview(payload: import('../types').SubmitReviewPayload): Promise<import('../types').ProductReview> {
+    const res = await fetch(`${BASE_URL}/reviews`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to submit review');
+    }
+    return res.json();
+  },
+
+  // Admin Reviews Moderation APIs
+  async getAdminReviews(): Promise<import('../types').ProductReview[]> {
+    const res = await fetch(`${BASE_URL}/reviews/admin/all`);
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to fetch reviews for admin');
+    }
+    return res.json();
+  },
+
+  async toggleReviewVisibility(reviewId: number): Promise<import('../types').ProductReview> {
+    const res = await fetch(`${BASE_URL}/reviews/admin/${reviewId}/toggle-visibility`, {
+      method: 'PUT',
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to toggle review visibility');
+    }
+    return res.json();
+  },
+
+  async deleteReview(reviewId: number): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`${BASE_URL}/reviews/admin/${reviewId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to delete review');
+    }
+    return res.json();
+  },
+
+  // Customer Wishlist APIs
+  async getUserWishlist(userId: number): Promise<Product[]> {
+    const res = await fetch(`${BASE_URL}/wishlist/${userId}`);
+    if (!res.ok) {
+      throw new Error('Failed to fetch wishlist');
+    }
+    return res.json();
+  },
+
+  async toggleWishlist(userId: number, productId: number): Promise<{ action: string; productId: number; inWishlist: boolean }> {
+    const res = await fetch(`${BASE_URL}/wishlist/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, productId }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to update wishlist');
+    }
+    return res.json();
+  },
+
+  async removeFromWishlist(userId: number, productId: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/wishlist/${userId}/${productId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      throw new Error('Failed to remove item from wishlist');
+    }
+  },
+
+  async clearUserWishlist(userId: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/wishlist/${userId}/clear`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      throw new Error('Failed to clear wishlist');
+    }
+  },
+
+  // Customer Browsing History APIs
+  async getUserHistory(userId: number): Promise<UserBrowsingHistoryItem[]> {
+    const res = await fetch(`${BASE_URL}/history/${userId}`);
+    if (!res.ok) {
+      throw new Error('Failed to fetch browsing history');
+    }
+    return res.json();
+  },
+
+  async recordProductView(userId: number, productId: number): Promise<UserBrowsingHistoryItem> {
+    const res = await fetch(`${BASE_URL}/history`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, productId }),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to record product view');
+    }
+    return res.json();
+  },
+
+  async removeFromHistory(userId: number, productId: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/history/${userId}/${productId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      throw new Error('Failed to remove item from history');
+    }
+  },
+
+  async clearUserHistory(userId: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/history/${userId}/clear`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      throw new Error('Failed to clear browsing history');
+    }
+  },
+};
