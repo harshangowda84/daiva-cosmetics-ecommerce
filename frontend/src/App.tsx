@@ -7,6 +7,7 @@ import { BrowsingHistoryProvider } from './context/BrowsingHistoryContext';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { CartDrawer } from './components/CartDrawer';
+import { FloatingCartPill } from './components/FloatingCartPill';
 
 // Pages
 import { HomePage } from './pages/HomePage';
@@ -131,8 +132,11 @@ export const App: React.FC = () => {
                   )}
                 </main>
 
-                {/* CartDrawer and Footer only for main shopping storefront, hidden on Login, Register and Admin Portal */}
+                {/* CartDrawer, FloatingCartPill, and Footer only for main shopping storefront, hidden on Login, Register and Admin Portal */}
                 {!isDedicatedAuthOrAdmin && <CartDrawer onNavigate={handleNavigate} />}
+                {!isDedicatedAuthOrAdmin && currentPage !== 'checkout' && currentPage !== 'cart' && (
+                  <FloatingCartPill onNavigate={handleNavigate} />
+                )}
                 {!isDedicatedAuthOrAdmin && <Footer onNavigate={handleNavigate} />}
               </div>
             </BrowsingHistoryProvider>

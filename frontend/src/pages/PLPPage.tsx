@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Filter, SlidersHorizontal, ArrowUpDown, Sparkles, RefreshCw, X, ArrowRight } from 'lucide-react';
+import { Filter, SlidersHorizontal, ArrowUpDown, Sparkles, RefreshCw, X } from 'lucide-react';
 import { Product } from '../types';
 import { api } from '../services/api';
 import { ProductCard } from '../components/ProductCard';
 import { RecentlyViewedSection } from '../components/RecentlyViewedSection';
-import { useCart } from '../context/CartContext';
 
 interface PLPPageProps {
   initialSubCategory?: string;
@@ -12,7 +11,6 @@ interface PLPPageProps {
 }
 
 export const PLPPage: React.FC<PLPPageProps> = ({ initialSubCategory = 'All', onNavigate }) => {
-  const { totalItemsCount, subtotal, setIsCartDrawerOpen, isCartDrawerOpen } = useCart();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -354,38 +352,6 @@ export const PLPPage: React.FC<PLPPageProps> = ({ initialSubCategory = 'All', on
                 Apply
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Floating Easy Cart Pill for Seamless Multi-Item Shopping */}
-      {totalItemsCount > 0 && !isCartDrawerOpen && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 select-none animate-in slide-in-from-bottom-5 duration-300">
-          <div className="bg-[#1E1611]/95 text-white backdrop-blur-md px-5 py-3 rounded-full shadow-2xl border border-neutral-700/60 flex items-center gap-4 hover:scale-[1.02] transition-transform">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-full bg-rose-600 flex items-center justify-center text-white font-bold text-xs shadow-xs">
-                {totalItemsCount}
-              </div>
-              <div>
-                <p className="text-xs font-semibold leading-tight text-neutral-100">
-                  {totalItemsCount} item{totalItemsCount > 1 ? 's' : ''} in Bag
-                </p>
-                <p className="text-[11px] font-bold text-amber-300">
-                  ₹{subtotal.toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            <div className="h-4 w-px bg-neutral-700" />
-
-            <button
-              type="button"
-              onClick={() => setIsCartDrawerOpen(true)}
-              className="px-4 py-1.5 rounded-full bg-white text-[#1E1611] hover:bg-neutral-100 text-xs font-bold flex items-center gap-1.5 transition shadow-sm"
-            >
-              <span>View Bag</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
       )}
