@@ -113,8 +113,16 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
         recordView(data);
 
         // Fetch related products
-        const all = await api.getProducts({ subCategory: data.subCategory });
-        setRelatedProducts(all.filter((p) => p.id !== data.id).slice(0, 4));
+        const subProducts = await api.getProducts({ subCategory: data.subCategory });
+        let related = subProducts.filter((p) => p.id !== data.id);
+        if (related.length < 5) {
+          const allProducts = await api.getProducts();
+          const additional = allProducts.filter(
+            (p) => p.id !== data.id && p.category === data.category && !related.some((r) => r.id === p.id)
+          );
+          related = [...related, ...additional];
+        }
+        setRelatedProducts(related.slice(0, 5));
 
         // Load reviews and eligibility
         loadProductReviews(data.id);
@@ -761,7 +769,7 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
               View More {product.subCategory} →
             </button>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-4 lg:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-5 items-stretch">
             {relatedProducts.map((p) => (
               <ProductCard key={p.id} product={p} onNavigate={onNavigate} />
             ))}
