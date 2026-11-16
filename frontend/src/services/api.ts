@@ -11,8 +11,29 @@ import {
   MockPaymentSimulationResponse,
   UserBrowsingHistoryItem,
 } from '../types';
+import { getFullImageUrl } from '../utils/image';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
+export const normalizeProduct = (product: Product): Product => {
+  if (!product) return product;
+  const imageUrl = getFullImageUrl(product.imageUrl);
+  let galleryImages = product.galleryImages;
+  if (galleryImages) {
+    galleryImages = galleryImages
+      .split(',')
+      .map((img) => getFullImageUrl(img.trim()))
+      .filter(Boolean)
+      .join(',');
+  } else if (imageUrl) {
+    galleryImages = imageUrl;
+  }
+  return {
+    ...product,
+    imageUrl,
+    galleryImages,
+  };
+};
 
 export const api = {
   // Products
@@ -44,25 +65,29 @@ export const api = {
 
     const res = await fetch(`${BASE_URL}/products?${query.toString()}`);
     if (!res.ok) throw new Error('Failed to fetch products');
-    return res.json();
+    const data: Product[] = await res.json();
+    return data.map(normalizeProduct);
   },
 
   async getProductBySlug(slug: string): Promise<Product> {
     const res = await fetch(`${BASE_URL}/products/slug/${slug}`);
     if (!res.ok) throw new Error('Product not found');
-    return res.json();
+    const data: Product = await res.json();
+    return normalizeProduct(data);
   },
 
   async searchProducts(query: string): Promise<Product[]> {
     const res = await fetch(`${BASE_URL}/products/search?q=${encodeURIComponent(query)}`);
     if (!res.ok) throw new Error('Search failed');
-    return res.json();
+    const data: Product[] = await res.json();
+    return data.map(normalizeProduct);
   },
 
   async getFeaturedProducts(): Promise<Product[]> {
     const res = await fetch(`${BASE_URL}/products/featured`);
     if (!res.ok) throw new Error('Failed to fetch featured products');
-    return res.json();
+    const data: Product[] = await res.json();
+    return data.map(normalizeProduct);
   },
 
   async getCategories(): Promise<{ mainCategory: string; subCategories: string[]; skinTypes: string[] }> {
@@ -199,7 +224,8 @@ export const api = {
   async getAdminProducts(): Promise<Product[]> {
     const res = await fetch(`${BASE_URL}/admin/products`);
     if (!res.ok) throw new Error('Failed to fetch admin products');
-    return res.json();
+    const data: Product[] = await res.json();
+    return data.map(normalizeProduct);
   },
 
   async createAdminProduct(product: Partial<Product>): Promise<Product> {
@@ -219,7 +245,8 @@ export const api = {
       }
       throw new Error(errorMsg);
     }
-    return res.json();
+    const data: Product = await res.json();
+    return normalizeProduct(data);
   },
 
   async updateAdminProduct(id: number, product: Partial<Product>): Promise<Product> {
@@ -239,7 +266,8 @@ export const api = {
       }
       throw new Error(errorMsg);
     }
-    return res.json();
+    const data: Product = await res.json();
+    return normalizeProduct(data);
   },
 
   async updateAdminStock(id: number, stockQuantity: number): Promise<Product> {
@@ -249,7 +277,8 @@ export const api = {
       body: JSON.stringify({ stockQuantity }),
     });
     if (!res.ok) throw new Error('Failed to update stock');
-    return res.json();
+    const data: Product = await res.json();
+    return normalizeProduct(data);
   },
 
   async getAdminOrders(): Promise<CustomerOrder[]> {
@@ -319,7 +348,12 @@ export const api = {
       throw new Error(err.error || 'Image upload failed');
     }
     const data = await res.json();
-    return data.images || [];
+    const list: UploadedImageInfo[] = data.images || [];
+    return list.map((item) => ({
+      ...item,
+      pdpUrl: getFullImageUrl(item.pdpUrl),
+      plpUrl: getFullImageUrl(item.plpUrl),
+    }));
   },
 
   async uploadSingleProductImage(file: File): Promise<UploadedImageInfo> {
@@ -333,7 +367,12 @@ export const api = {
       const err = await res.json();
       throw new Error(err.error || 'Image upload failed');
     }
-    return res.json();
+    const data: UploadedImageInfo = await res.json();
+    return {
+      ...data,
+      pdpUrl: getFullImageUrl(data.pdpUrl),
+      plpUrl: getFullImageUrl(data.plpUrl),
+    };
   },
 
   // Stock Movement & Audit Trail
@@ -588,7 +627,8 @@ export const api = {
       const err = await res.json();
       throw new Error(err.error || 'Failed to upload review image');
     }
-    return res.json();
+    const data = await res.json();
+    return { imageUrl: getFullImageUrl(data.imageUrl) };
   },
 
   async submitReview(payload: import('../types').SubmitReviewPayload): Promise<import('../types').ProductReview> {

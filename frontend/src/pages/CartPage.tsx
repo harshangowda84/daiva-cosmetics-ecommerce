@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Trash2, Plus, Minus, ArrowRight, ShoppingBag, Sparkles, ShieldCheck, Tag, CheckSquare, Square, Heart } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { getFullImageUrl, handleImageError } from '../utils/image';
 
 interface CartPageProps {
   onNavigate: (page: string, param?: string) => void;
@@ -164,10 +165,11 @@ export const CartPage: React.FC<CartPageProps> = ({ onNavigate }) => {
                     className="w-20 h-20 sm:w-24 sm:h-24 min-w-[5rem] sm:min-w-[6rem] aspect-square rounded-2xl overflow-hidden bg-neutral-100 dark:bg-[#251D18] flex-shrink-0 flex items-center justify-center p-1 border border-neutral-100 dark:border-[#2C211A] cursor-pointer hover:opacity-90 transition"
                   >
                     <img
-                      src={item.product.imageUrl}
+                      src={getFullImageUrl(item.product.imageUrl)}
                       alt={item.product.name}
                       className="w-full h-full object-cover rounded-xl"
                       loading="lazy"
+                      onError={handleImageError}
                     />
                   </div>
 

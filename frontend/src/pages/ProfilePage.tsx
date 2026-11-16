@@ -38,6 +38,7 @@ import { useBrowsingHistory } from '../context/BrowsingHistoryContext';
 import { CustomerOrder, ShipmentTracking, ProductReview, OrderItem, UserAddress } from '../types';
 import { api } from '../services/api';
 import { profanityService } from '../services/profanityService';
+import { getFullImageUrl, handleImageError } from '../utils/image';
 
 interface ProfilePageProps {
   onNavigate: (page: string, param?: string) => void;
@@ -780,9 +781,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                       >
                         <div className="relative aspect-square overflow-hidden bg-neutral-100 dark:bg-[#251D18]">
                           <img
-                            src={product.imageUrl}
+                            src={getFullImageUrl(product.imageUrl)}
                             alt={product.name}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            onError={handleImageError}
                           />
                           <div className="absolute top-2 left-2 bg-black/60 text-white text-[9px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1 backdrop-blur-xs">
                             <Clock className="w-2.5 h-2.5 text-neutral-300" />
@@ -1638,7 +1640,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                         key={i}
                         className="w-14 h-14 rounded-xl overflow-hidden relative border border-neutral-200 dark:border-[#2C211A] group"
                       >
-                        <img src={imgUrl} alt={`Upload ${i + 1}`} className="w-full h-full object-cover" />
+                        <img
+                          src={getFullImageUrl(imgUrl)}
+                          alt={`Upload ${i + 1}`}
+                          className="w-full h-full object-cover"
+                          onError={handleImageError}
+                        />
                         <button
                           type="button"
                           onClick={() => setReviewImages((prev) => prev.filter((_, idx) => idx !== i))}

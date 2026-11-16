@@ -3,6 +3,7 @@ import { Star, ShoppingBag, Check, Plus, Minus, Heart } from 'lucide-react';
 import { Product } from '../types';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
+import { getFullImageUrl, handleImageError } from '../utils/image';
 
 interface ProductCardProps {
   product: Product;
@@ -66,10 +67,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
       {/* Image Container - Square Aspect Ratio for Compact Luxury Presentation */}
       <div className="relative aspect-square overflow-hidden bg-neutral-100 dark:bg-[#231A14]">
         <img
-          src={product.imageUrl}
+          src={getFullImageUrl(product.imageUrl)}
           alt={product.name}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           loading="lazy"
+          onError={handleImageError}
         />
 
         {/* Badges */}

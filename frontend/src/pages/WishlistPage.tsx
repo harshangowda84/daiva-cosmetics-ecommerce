@@ -3,6 +3,7 @@ import { Heart, ShoppingBag, Trash2, ArrowRight, Sparkles, Check, ArrowLeft, Sta
 import { useWishlist } from '../context/WishlistContext';
 import { useCart } from '../context/CartContext';
 import { Product } from '../types';
+import { getFullImageUrl, handleImageError } from '../utils/image';
 
 interface WishlistPageProps {
   onNavigate: (page: string, param?: string) => void;
@@ -133,10 +134,11 @@ export const WishlistPage: React.FC<WishlistPageProps> = ({ onNavigate }) => {
                   className="relative aspect-[4/5] overflow-hidden bg-neutral-100 cursor-pointer"
                 >
                   <img
-                    src={product.imageUrl}
+                    src={getFullImageUrl(product.imageUrl)}
                     alt={product.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     loading="lazy"
+                    onError={handleImageError}
                   />
 
                   {/* Remove Button */}

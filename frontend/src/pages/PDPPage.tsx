@@ -26,6 +26,7 @@ import { useWishlist } from '../context/WishlistContext';
 import { useBrowsingHistory } from '../context/BrowsingHistoryContext';
 import { ProductCard } from '../components/ProductCard';
 import { RecentlyViewedSection } from '../components/RecentlyViewedSection';
+import { getFullImageUrl, handleImageError } from '../utils/image';
 
 interface PDPPageProps {
   slug: string;
@@ -196,9 +197,10 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
         <div className="lg:col-span-7 space-y-4">
           <div className="aspect-[4/4] sm:aspect-[4/3] rounded-3xl overflow-hidden bg-white border border-[#EAE1D3] shadow-sm relative">
             <img
-              src={selectedImage || product.imageUrl}
+              src={getFullImageUrl(selectedImage || product.imageUrl)}
               alt={product.name}
               className="w-full h-full object-cover transition-all duration-300"
+              onError={handleImageError}
             />
             {product.discountPercent && product.discountPercent > 0 && (
               <span className="absolute top-4 left-4 bg-rose-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md">
@@ -223,7 +225,12 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
                     selectedImage === img ? 'border-rose-700 shadow-md scale-95' : 'border-neutral-200 hover:border-neutral-400'
                   }`}
                 >
-                  <img src={img} alt={`view-${idx}`} className="w-full h-full object-cover" />
+                  <img
+                    src={getFullImageUrl(img)}
+                    alt={`view-${idx}`}
+                    className="w-full h-full object-cover"
+                    onError={handleImageError}
+                  />
                 </button>
               ))}
             </div>

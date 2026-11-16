@@ -4,6 +4,7 @@ import { useBrowsingHistory } from '../context/BrowsingHistoryContext';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { Product } from '../types';
+import { getFullImageUrl, handleImageError } from '../utils/image';
 
 interface HistoryPageProps {
   onNavigate: (page: string, param?: string) => void;
@@ -151,9 +152,10 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ onNavigate }) => {
                 {/* Image and Badges */}
                 <div className="relative aspect-square overflow-hidden bg-neutral-100 dark:bg-[#251D18]">
                   <img
-                    src={product.imageUrl}
+                    src={getFullImageUrl(product.imageUrl)}
                     alt={product.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    onError={handleImageError}
                   />
 
                   {/* Relative Timestamp Pill */}

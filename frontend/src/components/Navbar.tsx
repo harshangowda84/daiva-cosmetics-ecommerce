@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
 import { api } from '../services/api';
 import { Product } from '../types';
+import { getFullImageUrl, handleImageError } from '../utils/image';
 
 interface NavbarProps {
   onNavigate: (page: string, param?: string) => void;
@@ -151,9 +152,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, current
                         className="flex items-center gap-3 p-2 hover:bg-[#FAF9F6] dark:hover:bg-[#251C17] rounded-xl cursor-pointer transition"
                       >
                         <img
-                          src={product.imageUrl}
+                          src={getFullImageUrl(product.imageUrl)}
                           alt={product.name}
                           className="w-12 h-12 rounded-lg object-cover bg-neutral-100 flex-shrink-0"
+                          onError={handleImageError}
                         />
                         <div className="flex-1 min-w-0">
                           <p className="text-xs text-neutral-500 dark:text-neutral-400">{product.brand}</p>

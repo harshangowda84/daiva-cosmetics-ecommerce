@@ -48,6 +48,7 @@ import { ThemeToggle } from '../components/ThemeToggle';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Product, CustomerOrder, ZohoStatus, UploadedImageInfo, StockMovement, ProductBatch, ShipmentTracking, ProductReview } from '../types';
+import { getFullImageUrl, handleImageError } from '../utils/image';
 
 interface AdminPageProps {
   onNavigate: (page: string, param?: string) => void;
@@ -1183,9 +1184,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                       <tr key={p.id} className="hover:bg-[#FAF9F6] dark:hover:bg-[#201813]/60 transition">
                         <td className="py-3.5 px-4 flex items-center gap-3">
                           <img
-                            src={p.imageUrl}
+                            src={getFullImageUrl(p.imageUrl)}
                             alt={p.name}
                             className="w-10 h-12 rounded-lg object-cover bg-neutral-100 dark:bg-neutral-800 flex-shrink-0 border border-neutral-200 dark:border-[#2C211A]"
+                            onError={handleImageError}
                           />
                           <div className="min-w-0">
                             <p className="font-medium text-neutral-900 dark:text-[#EDE4DA] truncate max-w-xs">{p.name}</p>
@@ -1996,9 +1998,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                               <div className="w-16 h-20 rounded-xl overflow-hidden bg-neutral-100 border border-neutral-200 shrink-0">
                                 {rev.productImageUrl ? (
                                   <img
-                                    src={rev.productImageUrl}
+                                    src={getFullImageUrl(rev.productImageUrl)}
                                     alt={rev.productName || 'Product'}
                                     className="w-full h-full object-cover"
+                                    onError={handleImageError}
                                   />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center text-neutral-300">
@@ -2175,9 +2178,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             <div className="flex justify-between items-start px-6 py-4 border-b border-neutral-100 bg-[#FAF9F6] flex-shrink-0">
               <div className="flex items-center gap-3">
                 <img
-                  src={auditProduct.imageUrl}
+                  src={getFullImageUrl(auditProduct.imageUrl)}
                   alt={auditProduct.name}
                   className="w-14 h-16 rounded-xl object-cover border border-neutral-200 bg-neutral-100 flex-shrink-0"
+                  onError={handleImageError}
                 />
                 <div>
                   <div className="flex items-center gap-2">
@@ -3114,9 +3118,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                             >
                               <div className="w-full aspect-square rounded-lg overflow-hidden relative">
                                 <img
-                                  src={imgUrl}
+                                  src={getFullImageUrl(imgUrl)}
                                   alt={`preview-${idx}`}
                                   className="w-full h-full object-cover"
+                                  onError={handleImageError}
                                 />
                                 {isPrimary && (
                                   <div className="absolute top-1 left-1 bg-rose-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow flex items-center gap-0.5">
@@ -3487,9 +3492,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                             >
                               <div className="w-full aspect-square rounded-lg overflow-hidden relative">
                                 <img
-                                  src={imgUrl}
+                                  src={getFullImageUrl(imgUrl)}
                                   alt={`preview-${idx}`}
                                   className="w-full h-full object-cover"
+                                  onError={handleImageError}
                                 />
                                 {isPrimary && (
                                   <div className="absolute top-1 left-1 bg-emerald-700 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow flex items-center gap-0.5">

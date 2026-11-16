@@ -25,6 +25,7 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { CustomerOrder, RazorpayOrderResponse, ShippingServiceability, UserAddress } from '../types';
+import { getFullImageUrl, handleImageError } from '../utils/image';
 
 interface CheckoutPageProps {
   onNavigate: (page: string, param?: string) => void;
@@ -1091,9 +1092,10 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                 <div key={item.product.id} className="flex gap-3 items-center justify-between text-xs">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <img
-                      src={item.product.imageUrl}
+                      src={getFullImageUrl(item.product.imageUrl)}
                       alt={item.product.name}
                       className="w-12 h-14 rounded-lg object-cover bg-neutral-100 flex-shrink-0"
+                      onError={handleImageError}
                     />
                     <div className="min-w-0">
                       <p className="font-medium text-neutral-800 truncate">{item.product.name}</p>
