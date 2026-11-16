@@ -16,7 +16,8 @@ import {
   X,
   AlertCircle,
   Loader2,
-  Heart
+  Heart,
+  Share2
 } from 'lucide-react';
 import { Product, ProductReview, ReviewSummaryResponse } from '../types';
 import { api } from '../services/api';
@@ -26,6 +27,7 @@ import { useWishlist } from '../context/WishlistContext';
 import { useBrowsingHistory } from '../context/BrowsingHistoryContext';
 import { ProductCard } from '../components/ProductCard';
 import { RecentlyViewedSection } from '../components/RecentlyViewedSection';
+import { ShareProductModal } from '../components/ShareProductModal';
 import { getFullImageUrl, handleImageError } from '../utils/image';
 
 interface PDPPageProps {
@@ -47,6 +49,7 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
   const [activeTab, setActiveTab] = useState<'details' | 'ingredients' | 'howToUse'>('details');
   const [loading, setLoading] = useState(true);
   const [added, setAdded] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
 
   // Customer Reviews Read-Only Display States
   const [reviewsOpen, setReviewsOpen] = useState(false);
@@ -371,6 +374,16 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
                 title={isWishlisted ? 'Saved in Wishlist' : 'Save to Wishlist'}
               >
                 <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-rose-600 text-rose-600' : ''}`} />
+              </button>
+
+              {/* Share Product Button */}
+              <button
+                type="button"
+                onClick={() => setIsShareOpen(true)}
+                className="p-3.5 rounded-full border border-neutral-300 dark:border-[#2C211A] text-neutral-600 dark:text-neutral-300 hover:border-rose-300 hover:text-rose-600 bg-white dark:bg-[#1A1410] hover:bg-rose-50/50 dark:hover:bg-[#251D18] transition flex items-center justify-center shrink-0"
+                title="Share this cosmetic"
+              >
+                <Share2 className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -763,6 +776,13 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
           onNavigate={onNavigate}
         />
       )}
+
+      {/* Share Product Modal */}
+      <ShareProductModal
+        product={product}
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+      />
     </div>
   );
 };

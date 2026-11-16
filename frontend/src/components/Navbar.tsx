@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, ShoppingBag, User as UserIcon, Shield, Menu, X, Sparkles, Heart, History } from 'lucide-react';
+import { Search, ShoppingBag, User as UserIcon, Shield, Menu, X, Sparkles, Heart } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
-import { useBrowsingHistory } from '../context/BrowsingHistoryContext';
 import { useAuth } from '../context/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
 import { api } from '../services/api';
@@ -18,7 +17,6 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, currentParam }) => {
   const { totalItemsCount, setIsCartDrawerOpen } = useCart();
   const { totalWishlistCount } = useWishlist();
-  const { totalHistoryCount } = useBrowsingHistory();
   const { user, isAdmin, logout } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -228,26 +226,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, current
               )}
             </button>
 
-            {/* Browsing History Button with Counter - hidden on small mobile, accessible in mobile menu */}
-            <div className="hidden sm:flex">
-              <button
-                onClick={() => onNavigate('history')}
-                className={`relative p-2 rounded-full hover:bg-[#f1ece5] dark:hover:bg-[#201813] transition flex items-center justify-center ${
-                  currentPage === 'history' || currentPage === 'browsing-history'
-                    ? 'text-rose-600 bg-rose-50 dark:bg-rose-950/40 dark:text-rose-400' 
-                    : 'text-neutral-700 dark:text-neutral-200 hover:text-rose-600 dark:hover:text-rose-400'
-                }`}
-                title="Browsing History"
-              >
-                <History className="w-5 h-5" />
-                {totalHistoryCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-amber-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
-                    {totalHistoryCount}
-                  </span>
-                )}
-              </button>
-            </div>
-
             {/* Cart Icon with Counter */}
             <button
               onClick={() => setIsCartDrawerOpen(true)}
@@ -326,24 +304,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, current
               {totalWishlistCount > 0 && (
                 <span className="bg-rose-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                   {totalWishlistCount}
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                onNavigate('history');
-              }}
-              className="flex items-center justify-between w-full py-2 text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:text-rose-700 dark:hover:text-rose-400 border-b border-neutral-200/60 dark:border-[#2C211A] pb-2 mb-2"
-            >
-              <span className="flex items-center gap-2">
-                <History className="w-4 h-4 text-amber-600" />
-                <span>Browsing History</span>
-              </span>
-              {totalHistoryCount > 0 && (
-                <span className="bg-amber-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                  {totalHistoryCount}
                 </span>
               )}
             </button>

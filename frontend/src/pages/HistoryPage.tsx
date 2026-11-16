@@ -1,61 +1,14 @@
-import React, { useState } from 'react';
-import { History, ShoppingBag, Trash2, ArrowLeft, Star, Heart, Check, Clock, Sparkles } from 'lucide-react';
+import React from 'react';
+import { History, Trash2, ArrowLeft, Sparkles } from 'lucide-react';
 import { useBrowsingHistory } from '../context/BrowsingHistoryContext';
-import { useCart } from '../context/CartContext';
-import { useWishlist } from '../context/WishlistContext';
-import { Product } from '../types';
-import { getFullImageUrl, handleImageError } from '../utils/image';
+import { ProductCard } from '../components/ProductCard';
 
 interface HistoryPageProps {
   onNavigate: (page: string, param?: string) => void;
 }
 
-const formatRelativeTime = (dateString: string): string => {
-  try {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffSec = Math.floor(diffMs / 1000);
-    const diffMin = Math.floor(diffSec / 60);
-    const diffHour = Math.floor(diffMin / 60);
-    const diffDay = Math.floor(diffHour / 24);
-
-    if (diffSec < 60) return 'Just now';
-    if (diffMin < 60) return `${diffMin}m ago`;
-    if (diffHour < 24) return `${diffHour}h ago`;
-    if (diffDay === 1) return 'Yesterday';
-    if (diffDay < 7) return `${diffDay}d ago`;
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  } catch {
-    return 'Recently';
-  }
-};
-
 export const HistoryPage: React.FC<HistoryPageProps> = ({ onNavigate }) => {
   const { history, removeFromHistory, clearHistory, totalHistoryCount } = useBrowsingHistory();
-  const { addToCart } = useCart();
-  const { isInWishlist, toggleWishlist } = useWishlist();
-  const [toastMessage, setToastMessage] = useState<string>('');
-  const [addedIds, setAddedIds] = useState<Record<number, boolean>>({});
-
-  const handleAddToCart = (product: Product, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (product.stockQuantity <= 0) return;
-    addToCart(product, 1, false);
-    setAddedIds((prev) => ({ ...prev, [product.id]: true }));
-    setToastMessage(`"${product.name}" added to bag!`);
-    setTimeout(() => {
-      setToastMessage('');
-      setAddedIds((prev) => ({ ...prev, [product.id]: false }));
-    }, 2500);
-  };
-
-  const handleToggleWishlist = async (product: Product, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const added = await toggleWishlist(product);
-    setToastMessage(added ? `"${product.name}" added to wishlist!` : `Removed from wishlist`);
-    setTimeout(() => setToastMessage(''), 2500);
-  };
 
   const handleRemove = async (productId: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -64,16 +17,6 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ onNavigate }) => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-20 right-6 z-50 animate-in slide-in-from-top-4 duration-300">
-          <div className="bg-[#1E1611] dark:bg-[#251D18] text-white px-5 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-semibold border border-neutral-700 dark:border-[#382B21]">
-            <Check className="w-4 h-4 text-emerald-400" />
-            <span>{toastMessage}</span>
-          </div>
-        </div>
-      )}
-
       {/* Header Banner */}
       <div className="bg-[#FAF5EF] dark:bg-[#1E1612] rounded-3xl p-6 sm:p-10 border border-[#EAE1D3] dark:border-[#2C211A] relative overflow-hidden transition-colors">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -137,129 +80,23 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({ onNavigate }) => {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-          {history.map(({ product, viewedAt }) => {
-            const inWishlist = isInWishlist(product.id);
-            const isAdded = addedIds[product.id];
-            const isOutOfStock = product.stockQuantity <= 0;
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-5 items-stretch">
+          {history.map(({ product }) => (
+            <div key={product.id} className="relative group/history h-full flex flex-col">
+              {/* Native PLP Product Card */}
+              <ProductCard product={product} onNavigate={onNavigate} />
 
-            return (
-              <div
-                key={product.id}
-                onClick={() => onNavigate('pdp', product.slug)}
-                className="group relative bg-white dark:bg-[#1A1410] rounded-3xl border border-neutral-200 dark:border-[#2C211A] overflow-hidden hover:shadow-xl dark:hover:border-rose-900/50 transition-all duration-300 flex flex-col cursor-pointer"
+              {/* Quick Remove from History Button (hover overlay) */}
+              <button
+                type="button"
+                onClick={(e) => handleRemove(product.id, e)}
+                title="Remove from history"
+                className="absolute top-2.5 right-11 z-20 w-8 h-8 rounded-full bg-white/95 dark:bg-[#1A1410]/95 backdrop-blur-xs flex items-center justify-center text-neutral-400 hover:text-red-600 dark:hover:text-red-400 transition shadow-xs opacity-0 group-hover/history:opacity-100 border border-neutral-200 dark:border-neutral-700"
               >
-                {/* Image and Badges */}
-                <div className="relative aspect-square overflow-hidden bg-neutral-100 dark:bg-[#251D18]">
-                  <img
-                    src={getFullImageUrl(product.imageUrl)}
-                    alt={product.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    onError={handleImageError}
-                  />
-
-                  {/* Relative Timestamp Pill */}
-                  <div className="absolute top-3 left-3 bg-black/60 dark:bg-black/75 backdrop-blur-xs text-white text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-neutral-300" />
-                    <span>{formatRelativeTime(viewedAt)}</span>
-                  </div>
-
-                  {/* Actions overlay: Remove from History & Wishlist */}
-                  <div className="absolute top-3 right-3 flex items-center gap-1.5">
-                    {/* Wishlist toggle */}
-                    <button
-                      type="button"
-                      onClick={(e) => handleToggleWishlist(product, e)}
-                      title={inWishlist ? 'Remove from Wishlist' : 'Add to Wishlist'}
-                      className="w-8 h-8 rounded-full bg-white/90 dark:bg-[#1A1410]/90 backdrop-blur-xs flex items-center justify-center text-neutral-700 dark:text-neutral-200 hover:text-rose-600 dark:hover:text-rose-400 hover:scale-110 transition shadow-xs"
-                    >
-                      <Heart
-                        className={`w-4 h-4 ${inWishlist ? 'fill-rose-600 text-rose-600 dark:text-rose-400' : ''}`}
-                      />
-                    </button>
-
-                    {/* Remove from history button */}
-                    <button
-                      type="button"
-                      onClick={(e) => handleRemove(product.id, e)}
-                      title="Remove from history"
-                      className="w-8 h-8 rounded-full bg-white/90 dark:bg-[#1A1410]/90 backdrop-blur-xs flex items-center justify-center text-neutral-400 hover:text-red-600 dark:hover:text-red-400 hover:scale-110 transition shadow-xs"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {/* Stock pill if out of stock */}
-                  {isOutOfStock && (
-                    <div className="absolute bottom-3 left-3 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-xs">
-                      Sold Out
-                    </div>
-                  )}
-                </div>
-
-                {/* Details */}
-                <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-neutral-500 dark:text-neutral-400 font-medium uppercase tracking-wider">
-                        {product.brand}
-                      </span>
-                      {product.rating > 0 && (
-                        <div className="flex items-center gap-1 text-amber-500">
-                          <Star className="w-3 h-3 fill-current" />
-                          <span className="text-xs font-bold text-neutral-700 dark:text-neutral-300">
-                            {product.rating.toFixed(1)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    <h4 className="font-serif text-sm sm:text-base font-semibold text-neutral-900 dark:text-[#EDE4DA] line-clamp-1 group-hover:text-rose-700 dark:group-hover:text-rose-400 transition">
-                      {product.name}
-                    </h4>
-
-                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 line-clamp-2">
-                      {product.description}
-                    </p>
-                  </div>
-
-                  {/* Footer: Price & Add to Bag */}
-                  <div className="flex items-center justify-between pt-2 border-t border-neutral-100 dark:border-[#2C211A]">
-                    <div>
-                      <span className="text-sm sm:text-base font-bold text-neutral-900 dark:text-[#EDE4DA]">
-                        ₹{product.price.toLocaleString()}
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      disabled={isOutOfStock}
-                      onClick={(e) => handleAddToCart(product, e)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition shadow-xs ${
-                        isOutOfStock
-                          ? 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed'
-                          : isAdded
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-[#1E1611] dark:bg-rose-900 hover:bg-rose-700 dark:hover:bg-rose-800 text-white'
-                      }`}
-                    >
-                      {isAdded ? (
-                        <>
-                          <Check className="w-3.5 h-3.5" />
-                          <span className="hidden sm:inline">Added</span>
-                        </>
-                      ) : (
-                        <>
-                          <ShoppingBag className="w-3.5 h-3.5" />
-                          <span>{isOutOfStock ? 'Sold Out' : 'Add'}</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>

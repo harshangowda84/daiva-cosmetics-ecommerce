@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Star, ShoppingBag, Check, Plus, Minus, Heart } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Star, ShoppingBag, Check, Plus, Minus, Heart, Layers } from 'lucide-react';
 import { Product } from '../types';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -16,6 +16,46 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
   const [justAdded, setJustAdded] = useState(false);
   const [pulse, setPulse] = useState(false);
   const [heartPop, setHeartPop] = useState(false);
+
+  // Multi-image hover preview
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+  const cycleIntervalRef = useRef<any>(null);
+
+  // Deduplicate and collect all available images
+  const allImages = useMemo(() => {
+    const list: string[] = [];
+    if (product.imageUrl) list.push(product.imageUrl);
+    if (product.galleryImages) {
+      const split = product.galleryImages.split(',').map((s) => s.trim()).filter(Boolean);
+      for (const url of split) {
+        if (!list.includes(url)) {
+          list.push(url);
+        }
+      }
+    }
+    return list.length > 0 ? list : [product.imageUrl];
+  }, [product.imageUrl, product.galleryImages]);
+
+  // Handle smooth auto-cycling through images while hovering (1.7s per image)
+  useEffect(() => {
+    if (isHovered && allImages.length > 1) {
+      cycleIntervalRef.current = setInterval(() => {
+        setActiveImageIndex((prev) => (prev + 1) % allImages.length);
+      }, 1700);
+    } else {
+      if (cycleIntervalRef.current) {
+        clearInterval(cycleIntervalRef.current);
+      }
+      setActiveImageIndex(0);
+    }
+
+    return () => {
+      if (cycleIntervalRef.current) {
+        clearInterval(cycleIntervalRef.current);
+      }
+    };
+  }, [isHovered, allImages.length]);
 
   const cartItem = items.find((item) => item.product.id === product.id);
   const quantityInCart = cartItem ? cartItem.quantity : 0;
@@ -62,20 +102,27 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
   return (
     <div
       onClick={() => onNavigate('pdp', product.slug)}
-      className="group bg-white dark:bg-[#1A1410] rounded-2xl overflow-hidden border border-[#ede7df] dark:border-[#2C211A] hover:border-[#c5b7a3] dark:hover:border-[#4E392B] hover:shadow-lg transition-all duration-300 flex flex-col cursor-pointer"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className="group bg-white dark:bg-[#1A1410] rounded-2xl overflow-hidden border border-[#ede7df] dark:border-[#2C211A] hover:border-[#c5b7a3] dark:hover:border-[#4E392B] hover:shadow-lg transition-all duration-300 flex flex-col h-full cursor-pointer"
     >
-      {/* Image Container - Square Aspect Ratio for Compact Luxury Presentation */}
+      {/* Image Container with Hover Multi-Image Preview */}
       <div className="relative aspect-square overflow-hidden bg-neutral-100 dark:bg-[#231A14]">
-        <img
-          src={getFullImageUrl(product.imageUrl)}
-          alt={product.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          loading="lazy"
-          onError={handleImageError}
-        />
+        {allImages.map((img, idx) => (
+          <img
+            key={idx}
+            src={getFullImageUrl(img)}
+            alt={`${product.name} ${idx + 1}`}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-in-out ${
+              activeImageIndex === idx ? 'opacity-100 z-0' : 'opacity-0 pointer-events-none'
+            }`}
+            loading="lazy"
+            onError={handleImageError}
+          />
+        ))}
 
         {/* Badges */}
-        <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 items-start">
+        <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 items-start z-10">
           {product.isBestSeller && (
             <span className="bg-[#1E1611] dark:bg-rose-950 text-white text-[9px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full shadow-xs border border-transparent dark:border-rose-800/40">
               Best Seller
@@ -88,30 +135,66 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
           )}
         </div>
 
-        {/* Volume badge */}
-        {product.volume && (
-          <span className="absolute bottom-2 left-2 bg-white/80 dark:bg-[#1A1410]/90 backdrop-blur-xs text-neutral-800 dark:text-[#EDE4DA] text-[9px] font-medium px-1.5 py-0.5 rounded border border-white/50 dark:border-[#2C211A]">
-            {product.volume}
-          </span>
+        {/* Floating Rating Badge at Bottom Left (matching reference photo) */}
+        {product.rating && (
+          <div className="absolute bottom-2.5 left-2.5 bg-white/95 dark:bg-black/85 backdrop-blur-xs text-neutral-800 dark:text-[#EDE4DA] text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-xs border border-white/50 dark:border-white/10 z-10">
+            <span>{product.rating.toFixed(1)}</span>
+            <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-500" />
+            <span className="text-neutral-300 dark:text-neutral-600 font-normal">|</span>
+            <span className="text-neutral-500 dark:text-neutral-400 font-normal">{product.reviewCount || 0}</span>
+          </div>
         )}
 
-        {/* Wishlist Heart Button */}
-        <button
-          type="button"
-          onClick={handleToggleWishlist}
-          className={`absolute top-2.5 right-2.5 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm backdrop-blur-xs select-none z-10 ${
-            isWishlisted
-              ? 'bg-white dark:bg-[#1A1410] text-rose-600 dark:text-rose-400 scale-105 shadow-rose-200 dark:shadow-none border border-rose-100 dark:border-rose-900/50'
-              : 'bg-white/80 dark:bg-[#1A1410]/80 text-neutral-400 dark:text-neutral-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-white dark:hover:bg-[#251D18] border border-white/60 dark:border-[#2C211A]'
-          }`}
-          title={isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
-        >
-          <Heart
-            className={`w-3.5 h-3.5 transition-all duration-200 ${
-              isWishlisted ? 'fill-rose-600 dark:fill-rose-500 text-rose-600 dark:text-rose-500' : 'stroke-[1.75]'
-            } ${heartPop ? 'scale-125' : 'scale-100'}`}
-          />
-        </button>
+        {/* Multiple Images Stack Indicator at Bottom Right */}
+        {allImages.length > 1 && (
+          <div className="absolute bottom-2.5 right-2.5 w-6 h-6 rounded-full bg-white/90 dark:bg-black/80 backdrop-blur-xs text-neutral-600 dark:text-neutral-300 flex items-center justify-center shadow-xs border border-white/40 dark:border-white/10 z-10">
+            <Layers className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+          </div>
+        )}
+
+        {/* Hover Pagination Indicator Dots (matching reference photo) */}
+        {allImages.length > 1 && isHovered && (
+          <div className="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-1 z-20 pointer-events-auto">
+            {allImages.map((_, idx) => (
+              <span
+                key={idx}
+                onMouseEnter={(e) => {
+                  e.stopPropagation();
+                  setActiveImageIndex(idx);
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveImageIndex(idx);
+                }}
+                className={`h-1.5 rounded-full transition-all duration-200 cursor-pointer ${
+                  activeImageIndex === idx
+                    ? 'w-4 bg-rose-600 shadow-xs'
+                    : 'w-1.5 bg-neutral-400/70 hover:bg-neutral-600'
+                }`}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Wishlist Button at Top Right */}
+        <div className="absolute top-2.5 right-2.5 z-10">
+          <button
+            type="button"
+            onClick={handleToggleWishlist}
+            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-300 shadow-sm backdrop-blur-xs select-none ${
+              isWishlisted
+                ? 'bg-white dark:bg-[#1A1410] text-rose-600 dark:text-rose-400 scale-105 shadow-rose-200 dark:shadow-none border border-rose-100 dark:border-rose-900/50'
+                : 'bg-white/85 dark:bg-[#1A1410]/85 text-neutral-500 dark:text-neutral-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-white dark:hover:bg-[#251D18] border border-white/60 dark:border-[#2C211A]'
+            }`}
+            title={isWishlisted ? 'Remove from Wishlist' : 'Add to Wishlist'}
+          >
+            <Heart
+              className={`w-3.5 h-3.5 transition-all duration-200 ${
+                isWishlisted ? 'fill-rose-600 dark:fill-rose-500 text-rose-600 dark:text-rose-500' : 'stroke-[1.75]'
+              } ${heartPop ? 'scale-125' : 'scale-100'}`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -123,17 +206,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
             <span className="truncate max-w-[45%] text-right">{product.subCategory}</span>
           </div>
 
-          {/* Title */}
-          <h3 className="font-serif text-xs sm:text-sm text-neutral-900 dark:text-[#EDE4DA] group-hover:text-rose-700 dark:group-hover:text-rose-400 transition line-clamp-2 leading-snug">
+          {/* Title - fixed 2-line height for uniform card alignment */}
+          <h3 className="font-serif text-xs sm:text-sm text-neutral-900 dark:text-[#EDE4DA] group-hover:text-rose-700 dark:group-hover:text-rose-400 transition line-clamp-2 leading-snug h-[2.25rem] sm:h-[2.5rem] flex items-start">
             {product.name}
           </h3>
 
-          {/* Rating */}
-          <div className="flex items-center gap-1 mt-1 text-xs">
-            <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-            <span className="text-[11px] font-bold text-neutral-800 dark:text-[#EDE4DA]">{product.rating}</span>
-            <span className="text-[10px] text-neutral-400 dark:text-neutral-500">({product.reviewCount})</span>
-          </div>
+          {/* Volume */}
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5 h-4 truncate">
+            {product.volume || ''}
+          </p>
         </div>
 
         <div className="mt-3 pt-2.5 border-t border-neutral-100 dark:border-[#2C211A] flex items-center justify-between gap-1.5">

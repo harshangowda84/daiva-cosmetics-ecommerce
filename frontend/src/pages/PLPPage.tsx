@@ -232,7 +232,7 @@ export const PLPPage: React.FC<PLPPageProps> = ({ initialSubCategory = 'All', on
 
           {/* Grid */}
           {loading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5 items-stretch">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                 <div key={n} className="bg-white dark:bg-[#1A1410] rounded-2xl h-64 animate-pulse border border-neutral-100 dark:border-[#2C211A]" />
               ))}
@@ -249,7 +249,7 @@ export const PLPPage: React.FC<PLPPageProps> = ({ initialSubCategory = 'All', on
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5 items-stretch">
               {products.map((product) => (
                 <ProductCard key={product.id} product={product} onNavigate={onNavigate} />
               ))}
@@ -260,7 +260,7 @@ export const PLPPage: React.FC<PLPPageProps> = ({ initialSubCategory = 'All', on
 
       {/* Recently Viewed Cosmetics (Browsing History) */}
       <div className="mt-14 pt-4">
-        <RecentlyViewedSection onNavigate={onNavigate} maxItems={4} />
+        <RecentlyViewedSection onNavigate={onNavigate} maxItems={6} />
       </div>
 
       {/* Mobile Filters Drawer */}

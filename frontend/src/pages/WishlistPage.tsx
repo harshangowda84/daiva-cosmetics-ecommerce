@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { Heart, ShoppingBag, Trash2, ArrowRight, Sparkles, Check, ArrowLeft, Star } from 'lucide-react';
+import { Heart, ShoppingBag, Trash2, ArrowRight, Check, ArrowLeft } from 'lucide-react';
 import { useWishlist } from '../context/WishlistContext';
 import { useCart } from '../context/CartContext';
-import { Product } from '../types';
-import { getFullImageUrl, handleImageError } from '../utils/image';
+import { ProductCard } from '../components/ProductCard';
 
 interface WishlistPageProps {
   onNavigate: (page: string, param?: string) => void;
@@ -12,21 +11,7 @@ interface WishlistPageProps {
 export const WishlistPage: React.FC<WishlistPageProps> = ({ onNavigate }) => {
   const { wishlist, removeFromWishlist, clearWishlist, totalWishlistCount } = useWishlist();
   const { addToCart } = useCart();
-  const [movingId, setMovingId] = useState<number | null>(null);
   const [toastMessage, setToastMessage] = useState<string>('');
-
-  const handleMoveToBag = async (product: Product) => {
-    if (product.stockQuantity <= 0) return;
-    setMovingId(product.id);
-    addToCart(product, 1, false, true);
-    setToastMessage(`"${product.name}" moved to your bag!`);
-
-    setTimeout(async () => {
-      await removeFromWishlist(product.id);
-      setMovingId(null);
-      setTimeout(() => setToastMessage(''), 2500);
-    }, 600);
-  };
 
   const handleMoveAllToBag = () => {
     const available = wishlist.filter((p) => p.stockQuantity > 0);
@@ -118,129 +103,25 @@ export const WishlistPage: React.FC<WishlistPageProps> = ({ onNavigate }) => {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {wishlist.map((product) => {
-            const isOutOfStock = product.stockQuantity <= 0;
-            const isMoving = movingId === product.id;
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-5 items-stretch">
+          {wishlist.map((product) => (
+            <div key={product.id} className="relative group/wishlist h-full flex flex-col">
+              <ProductCard product={product} onNavigate={onNavigate} />
 
-            return (
-              <div
-                key={product.id}
-                className="bg-white rounded-2xl overflow-hidden border border-[#ede7df] hover:border-[#c5b7a3] hover:shadow-xl transition-all duration-300 flex flex-col group"
+              {/* Quick Remove Button on Hover */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeFromWishlist(product.id);
+                }}
+                className="absolute top-2.5 right-11 z-20 w-8 h-8 rounded-full bg-white/95 dark:bg-[#1A1410]/95 backdrop-blur-xs flex items-center justify-center text-neutral-400 hover:text-red-600 dark:hover:text-red-400 transition shadow-xs opacity-0 group-hover/wishlist:opacity-100 border border-neutral-200 dark:border-neutral-700"
+                title="Remove from wishlist"
               >
-                {/* Image Container */}
-                <div
-                  onClick={() => onNavigate('pdp', product.slug)}
-                  className="relative aspect-[4/5] overflow-hidden bg-neutral-100 cursor-pointer"
-                >
-                  <img
-                    src={getFullImageUrl(product.imageUrl)}
-                    alt={product.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    loading="lazy"
-                    onError={handleImageError}
-                  />
-
-                  {/* Remove Button */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeFromWishlist(product.id);
-                    }}
-                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 text-neutral-400 hover:text-rose-600 hover:bg-white flex items-center justify-center transition shadow-sm backdrop-blur-xs"
-                    title="Remove from wishlist"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-
-                  {/* Discount / Best Seller Badges */}
-                  <div className="absolute top-3 left-3 flex flex-col gap-1 items-start pointer-events-none">
-                    {product.isBestSeller && (
-                      <span className="bg-[#1E1611] text-white text-[9px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full shadow-xs">
-                        Best Seller
-                      </span>
-                    )}
-                    {product.discountPercent && product.discountPercent > 0 && (
-                      <span className="bg-rose-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-xs">
-                        {product.discountPercent}% OFF
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Details */}
-                <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
-                  <div>
-                    <div className="flex justify-between items-center text-[10px] text-neutral-400 uppercase tracking-wider mb-1">
-                      <span>{product.brand}</span>
-                      <span>{product.subCategory}</span>
-                    </div>
-
-                    <h3
-                      onClick={() => onNavigate('pdp', product.slug)}
-                      className="font-serif text-sm font-semibold text-neutral-900 hover:text-rose-700 cursor-pointer transition line-clamp-2 leading-snug"
-                    >
-                      {product.name}
-                    </h3>
-
-                    <div className="flex items-center gap-1.5 mt-1.5 text-xs">
-                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                      <span className="font-semibold text-neutral-800">{product.rating}</span>
-                      <span className="text-[11px] text-neutral-400">({product.reviewCount})</span>
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-neutral-100 space-y-3">
-                    <div className="flex items-baseline justify-between">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-base font-bold text-neutral-900">
-                          ₹{product.price.toLocaleString()}
-                        </span>
-                        {product.originalPrice && product.originalPrice > product.price && (
-                          <span className="text-xs text-neutral-400 line-through">
-                            ₹{product.originalPrice.toLocaleString()}
-                          </span>
-                        )}
-                      </div>
-
-                      {isOutOfStock ? (
-                        <span className="text-[10px] font-semibold text-red-600">Out of Stock</span>
-                      ) : (
-                        <span className="text-[10px] font-semibold text-emerald-600">In Stock</span>
-                      )}
-                    </div>
-
-                    {/* Move to Bag Action Button */}
-                    <button
-                      type="button"
-                      disabled={isOutOfStock || isMoving}
-                      onClick={() => handleMoveToBag(product)}
-                      className={`w-full py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition shadow-xs ${
-                        isOutOfStock
-                          ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed border border-neutral-200'
-                          : isMoving
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-[#1E1611] text-white hover:bg-rose-700 active:scale-98'
-                      }`}
-                    >
-                      {isMoving ? (
-                        <>
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Moved to Bag</span>
-                        </>
-                      ) : (
-                        <>
-                          <ShoppingBag className="w-3.5 h-3.5" />
-                          <span>Move to Bag</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>
