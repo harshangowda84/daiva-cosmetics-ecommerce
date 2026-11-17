@@ -548,6 +548,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     }
   };
 
+  const handleSimulateReturnOutForPickup = async (returnId: number) => {
+    try {
+      showToast('Simulating courier out for reverse pickup...', 'loading');
+      setVerifyingReturnId(returnId);
+      const updated = await api.simulateReturnStatus(returnId, 'OUT_FOR_PICKUP');
+      setAllReturns((prev) => prev.map((r) => (r.id === returnId ? updated : r)));
+      showToast('Status updated: Agent is out for doorstep pickup!', 'success');
+    } catch (err: any) {
+      showToast('Failed to update status: ' + err.message, 'error');
+    } finally {
+      setVerifyingReturnId(null);
+    }
+  };
+
   const handleDispatchOrder = async (orderId: number) => {
     try {
       showToast('Booking forward shipment with Xpressbees...', 'loading');
@@ -2317,20 +2331,47 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           {r.status === 'PICKUP_SCHEDULED' ? (
-                            <div className="flex items-center justify-end gap-1.5">
+                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                              <button
+                                onClick={() => handleSimulateReturnOutForPickup(r.id)}
+                                disabled={verifyingReturnId === r.id}
+                                className="px-2 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold transition shadow-xs cursor-pointer"
+                                title="Simulate courier agent on the way to customer doorstep"
+                              >
+                                Out for Pickup
+                              </button>
                               <button
                                 onClick={() => handleVerifyPickup(r.id, true)}
                                 disabled={verifyingReturnId === r.id}
                                 className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 transition shadow-xs cursor-pointer"
-                                title="Courier confirms product seal & initiates instant refund"
+                                title="Courier confirms product seal & initiates instant refund / exchange"
                               >
-                                {verifyingReturnId === r.id ? 'Processing...' : 'Pass & Refund'}
+                                {verifyingReturnId === r.id ? 'Processing...' : (r.type === 'EXCHANGE' ? 'Verify & Dispatch' : 'Pass & Refund')}
                               </button>
                               <button
                                 onClick={() => handleVerifyPickup(r.id, false)}
                                 disabled={verifyingReturnId === r.id}
                                 className="px-2.5 py-1 rounded-lg bg-red-600 text-white text-[11px] font-bold hover:bg-red-700 transition shadow-xs cursor-pointer"
                                 title="Reject pickup if item opened or damaged by customer"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          ) : r.status === 'OUT_FOR_PICKUP' ? (
+                            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                              <span className="text-[10px] font-bold text-amber-600 mr-1 animate-pulse">Out for Pickup</span>
+                              <button
+                                onClick={() => handleVerifyPickup(r.id, true)}
+                                disabled={verifyingReturnId === r.id}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 transition shadow-xs cursor-pointer"
+                                title="Courier confirms product seal & completes doorstep handover"
+                              >
+                                {verifyingReturnId === r.id ? 'Processing...' : (r.type === 'EXCHANGE' ? 'Verify & Dispatch' : 'Pass & Refund')}
+                              </button>
+                              <button
+                                onClick={() => handleVerifyPickup(r.id, false)}
+                                disabled={verifyingReturnId === r.id}
+                                className="px-2.5 py-1 rounded-lg bg-red-600 text-white text-[11px] font-bold hover:bg-red-700 transition shadow-xs cursor-pointer"
                               >
                                 Reject
                               </button>

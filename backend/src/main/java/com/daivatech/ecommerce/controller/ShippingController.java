@@ -1,7 +1,9 @@
 package com.daivatech.ecommerce.controller;
 
 import com.daivatech.ecommerce.entity.CustomerOrder;
+import com.daivatech.ecommerce.entity.OrderReturnExchange;
 import com.daivatech.ecommerce.repository.CustomerOrderRepository;
+import com.daivatech.ecommerce.repository.OrderReturnExchangeRepository;
 import com.daivatech.ecommerce.service.XpressBeesService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -17,10 +19,14 @@ public class ShippingController {
 
     private final XpressBeesService xpressBeesService;
     private final CustomerOrderRepository orderRepository;
+    private final OrderReturnExchangeRepository returnExchangeRepository;
 
-    public ShippingController(XpressBeesService xpressBeesService, CustomerOrderRepository orderRepository) {
+    public ShippingController(XpressBeesService xpressBeesService,
+                              CustomerOrderRepository orderRepository,
+                              OrderReturnExchangeRepository returnExchangeRepository) {
         this.xpressBeesService = xpressBeesService;
         this.orderRepository = orderRepository;
+        this.returnExchangeRepository = returnExchangeRepository;
     }
 
     /**
@@ -78,8 +84,29 @@ public class ShippingController {
             return ResponseEntity.badRequest().body(Map.of("error", "No shipment tracking number (AWB) assigned yet"));
         }
 
-        Map<String, Object> trackInfo = xpressBeesService.trackShipment(order);
+        Map<String, Object> trackInfo = new java.util.HashMap<>(xpressBeesService.trackShipment(order));
+
+        // Attach reverse pickup tracking if return or exchange exists (Amazon reference workflow)
+        java.util.List<OrderReturnExchange> returns = returnExchangeRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
+        if (!returns.isEmpty()) {
+            OrderReturnExchange latestReturn = returns.get(0);
+            Map<String, Object> returnTrack = xpressBeesService.trackReversePickup(latestReturn, order);
+            trackInfo.put("returnExchangeTracking", returnTrack);
+        }
+
         return ResponseEntity.ok(trackInfo);
+    }
+
+    /**
+     * Dedicated tracking endpoint for Return/Exchange Reverse Pickup
+     */
+    @GetMapping("/returns/{returnId}/track")
+    public ResponseEntity<?> trackReturn(@PathVariable Long returnId) {
+        OrderReturnExchange ret = returnExchangeRepository.findById(returnId)
+                .orElseThrow(() -> new IllegalArgumentException("Return/Exchange request not found: " + returnId));
+        CustomerOrder order = orderRepository.findById(ret.getOrderId()).orElse(null);
+        Map<String, Object> returnTrack = xpressBeesService.trackReversePickup(ret, order);
+        return ResponseEntity.ok(returnTrack);
     }
 
     /**

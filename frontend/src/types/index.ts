@@ -134,6 +134,11 @@ export interface OrderReturnExchange {
   originalProductName?: string;
   exchangeProductId?: number;
   exchangeProductName?: string;
+  replacementOrderId?: number;
+  replacementOrderNumber?: string;
+  replacementAwbNumber?: string;
+  replacementTrackingUrl?: string;
+  replacementCourierStatus?: string;
   status: string; // "REQUESTED", "PICKUP_SCHEDULED", "OUT_FOR_PICKUP", "PICKED_UP_EXAMINED", "COMPLETED", "REJECTED", "EXCHANGE_DISPATCHED"
   reverseAwbNumber?: string;
   reverseTrackingUrl?: string;
@@ -145,6 +150,36 @@ export interface OrderReturnExchange {
   refundStatus?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ReturnExchangeTrackingInfo {
+  returnExchangeId: number;
+  orderId: number;
+  orderNumber: string;
+  type: 'RETURN' | 'EXCHANGE';
+  awb: string;
+  trackingUrl?: string;
+  courierName?: string;
+  currentStatus: string;
+  stageIndex: number; // 0..3
+  nextActionEstimate: string;
+  pickupSlot: string;
+  itemTitle: string;
+  reasonCategory: string;
+  refundAmount?: number;
+  refundStatus?: string;
+  refundId?: string;
+  replacementOrderId?: number;
+  replacementOrderNumber?: string;
+  replacementAwbNumber?: string;
+  replacementProductName?: string;
+  milestones: Array<{
+    status: string;
+    title: string;
+    time: string;
+    location: string;
+    description?: string;
+  }>;
 }
 
 export interface ZohoStatus {
@@ -248,6 +283,7 @@ export interface ShipmentTracking {
   milestones?: ShipmentMilestone[];
   trackingUrl?: string;
   message?: string;
+  returnExchangeTracking?: ReturnExchangeTrackingInfo;
 }
 
 export interface ProductReview {

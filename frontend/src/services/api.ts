@@ -637,6 +637,28 @@ export const api = {
     return res.json();
   },
 
+  async simulateReturnStatus(returnId: number, status: string): Promise<import('../types').OrderReturnExchange> {
+    const res = await fetch(`${BASE_URL}/admin/returns/${returnId}/simulate-status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to simulate return status');
+    }
+    return res.json();
+  },
+
+  async trackReturnShipment(returnId: number): Promise<import('../types').ReturnExchangeTrackingInfo> {
+    const res = await fetch(`${BASE_URL}/shipping/returns/${returnId}/track`);
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to fetch reverse tracking');
+    }
+    return res.json();
+  },
+
   // Google OAuth Auth API
   async googleAuth(data: { email: string; fullName?: string; googleSub?: string; profilePictureUrl?: string }): Promise<import('../types').User> {
     try {

@@ -65,6 +65,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(null);
 
+  // Active tracking view per order: 'forward' (standard order delivery) or 'return' (reverse pickup / exchange)
+  const [trackingViewMode, setTrackingViewMode] = useState<Record<number, 'forward' | 'return'>>({});
+
   // Dedicated Customer Order Cancellation Modal state (handles both pre-dispatch and in-transit)
   const [cancellingOrderModal, setCancellingOrderModal] = useState<CustomerOrder | null>(null);
   const [cancellationReason, setCancellationReason] = useState<string>('Ordered by mistake / accidental click');
@@ -720,6 +723,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                 const currentStage = getStageIndex(order, tracking);
                 const truckLeft = getTruckPosition(currentStage);
 
+                const retTrack = tracking?.returnExchangeTracking;
+                const hasReturnExchange = !!retTrack || order.orderStatus === 'RETURN_REQUESTED' || order.orderStatus === 'EXCHANGE_REQUESTED' || order.orderStatus === 'RETURNED' || order.orderStatus === 'EXCHANGED';
+                const currentView = trackingViewMode[order.id] || (hasReturnExchange ? 'return' : 'forward');
+
                 const itemsSummary = order.items.map((i) => i.productName).join(', ');
                 const unreviewedCount = order.items.filter((i) => !userReviewsMap[i.productId]).length;
 
@@ -904,9 +911,33 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                 <div>
                                   <div className="flex items-center gap-2">
                                     <h3 className="font-serif text-lg font-bold text-neutral-900 dark:text-[#EDE4DA]">
-                                      Order Tracking Journey
+                                      {currentView === 'return' && retTrack
+                                        ? (retTrack.type === 'EXCHANGE' ? 'Exchange & Replacement Journey' : 'Return & Refund Journey')
+                                        : 'Order Tracking Journey'}
                                     </h3>
-                                    {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? (
+                                    {currentView === 'return' && retTrack ? (
+                                      retTrack.currentStatus === 'COMPLETED' ? (
+                                        <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                          {retTrack.type === 'EXCHANGE' ? 'EXCHANGE DISPATCHED' : 'REFUND COMPLETED'}
+                                        </span>
+                                      ) : retTrack.currentStatus === 'REJECTED' ? (
+                                        <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/70 text-rose-800 dark:text-rose-300 border border-rose-300">
+                                          <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                                          INSPECTION FAILED
+                                        </span>
+                                      ) : retTrack.currentStatus === 'OUT_FOR_PICKUP' ? (
+                                        <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300">
+                                          <Truck className="w-3.5 h-3.5 text-amber-600 animate-bounce" />
+                                          OUT FOR PICKUP
+                                        </span>
+                                      ) : (
+                                        <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-ping" />
+                                          PICKUP SCHEDULED
+                                        </span>
+                                      )
+                                    ) : (currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED') ? (
                                       <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
                                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                                         DELIVERED
@@ -929,8 +960,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                     )}
                                   </div>
                                   <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                                    Xpressbees Air Express •{' '}
-                                    {order.awbNumber ? `AWB #${order.awbNumber}` : 'Tracking active'}
+                                    {currentView === 'return' && retTrack
+                                      ? `Xpressbees Reverse Logistics • Reverse AWB #${retTrack.awb}`
+                                      : `Xpressbees Air Express • ${order.awbNumber ? `AWB #${order.awbNumber}` : 'Tracking active'}`}
                                   </p>
                                 </div>
 
@@ -938,8 +970,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                   {order.awbNumber && (
                                     <a
                                       href={
-                                        tracking?.trackingUrl ||
-                                        `https://shipmentv2.xpressbees.com/orders/tracking/${order.awbNumber}`
+                                        (currentView === 'return' && retTrack?.trackingUrl)
+                                          ? retTrack.trackingUrl
+                                          : (tracking?.trackingUrl || `https://shipmentv2.xpressbees.com/orders/tracking/${order.awbNumber}`)
                                       }
                                       target="_blank"
                                       rel="noreferrer"
@@ -964,6 +997,39 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                 </div>
                               </div>
 
+                              {/* AMAZON-STYLE TRACKING SEGMENTED CONTROLLER (If Return or Exchange exists) */}
+                              {hasReturnExchange && retTrack && (
+                                <div className="p-1 bg-neutral-100 dark:bg-[#251D18] rounded-xl flex items-center gap-1 text-xs font-semibold">
+                                  <button
+                                    type="button"
+                                    onClick={() => setTrackingViewMode((prev) => ({ ...prev, [order.id]: 'return' }))}
+                                    className={`flex-1 py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                      currentView === 'return'
+                                        ? 'bg-rose-600 text-white shadow-xs font-bold'
+                                        : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+                                    }`}
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                    <span>
+                                      {retTrack.type === 'EXCHANGE' ? 'Exchange & Replacement Tracking' : 'Reverse Return Tracking'}
+                                    </span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => setTrackingViewMode((prev) => ({ ...prev, [order.id]: 'forward' }))}
+                                    className={`flex-1 py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                      currentView === 'forward'
+                                        ? 'bg-white dark:bg-[#1A1410] text-neutral-900 dark:text-white shadow-xs font-bold'
+                                        : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+                                    }`}
+                                  >
+                                    <Truck className="w-3.5 h-3.5 text-neutral-500" />
+                                    <span>Original Forward Delivery</span>
+                                  </button>
+                                </div>
+                              )}
+
                               {/* Centered Order Code Pill (Inspired by Reference Design) */}
                               <div className="text-center pt-1">
                                 <div className="inline-block bg-neutral-100 dark:bg-[#251D18] border border-neutral-200 dark:border-[#382B21] text-neutral-800 dark:text-[#EDE4DA] font-mono font-bold text-xs px-6 py-1.5 rounded-lg shadow-2xs">
@@ -971,8 +1037,32 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                 </div>
                               </div>
 
-                              {/* Estimated / Completed Delivery Notice */}
-                              {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? (
+                              {/* Estimated / Completed Delivery / Return Notice */}
+                              {currentView === 'return' && retTrack ? (
+                                <div className={`border rounded-xl px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-xs animate-in fade-in duration-200 ${
+                                  retTrack.currentStatus === 'COMPLETED'
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60'
+                                    : retTrack.currentStatus === 'REJECTED'
+                                    ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/60'
+                                    : 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-200/80 dark:border-blue-900/60'
+                                }`}>
+                                  <div className="flex items-center gap-2">
+                                    {retTrack.currentStatus === 'COMPLETED' ? (
+                                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                    ) : retTrack.currentStatus === 'REJECTED' ? (
+                                      <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                                    ) : (
+                                      <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                                    )}
+                                    <span className="font-semibold text-neutral-900 dark:text-white">
+                                      {retTrack.type === 'EXCHANGE' ? 'Exchange Journey Status:' : 'Return Pickup Status:'}
+                                    </span>
+                                  </div>
+                                  <span className="font-bold text-neutral-900 dark:text-neutral-100 text-xs sm:text-sm">
+                                    {retTrack.nextActionEstimate}
+                                  </span>
+                                </div>
+                              ) : currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? (
                                 <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs animate-in fade-in duration-200">
                                   <div className="flex items-center gap-2 text-emerald-900 dark:text-emerald-300">
                                     <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -1015,173 +1105,340 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                               ) : null}
 
                               {/* ANIMATED FLUID JOURNEY PIPELINE */}
-                              <div className="pt-8 pb-4 px-2 sm:px-6 relative select-none">
-                                {/* Connecting Progress Line & Nodes (Reference Design Style) */}
-                                <div className="relative">
-                                  {/* Progress Line */}
-                                  <div className="absolute top-3.5 left-[12%] right-[12%] h-1 bg-neutral-200 dark:bg-[#2C211A] rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full bg-gradient-to-r from-emerald-500 via-teal-500 to-amber-500 transition-all duration-1000 ease-out"
-                                      style={{
-                                        width:
-                                          currentStage === 0
-                                            ? '0%'
-                                            : currentStage === 1
-                                            ? '35%'
-                                            : currentStage === 2
-                                            ? '70%'
-                                            : '100%',
-                                      }}
-                                    />
+                              {currentView === 'return' && retTrack ? (
+                                /* AMAZON-STYLE REVERSE LOGISTICS PIPELINE */
+                                <div className="pt-8 pb-4 px-2 sm:px-6 relative select-none">
+                                  {/* Item context banner */}
+                                  <div className="mb-4 p-2.5 rounded-xl bg-neutral-50 dark:bg-[#251D18] border border-neutral-200/80 dark:border-[#382B21] flex items-center justify-between text-xs">
+                                    <div className="flex items-center gap-2">
+                                      <RotateCcw className="w-4 h-4 text-rose-600 shrink-0" />
+                                      <span className="text-neutral-700 dark:text-neutral-300">
+                                        <strong>{retTrack.type === 'EXCHANGE' ? 'Exchange Item:' : 'Return Item:'}</strong> {retTrack.itemTitle}
+                                      </span>
+                                    </div>
+                                    <span className="text-[11px] font-mono text-neutral-500">
+                                      Reverse AWB: {retTrack.awb}
+                                    </span>
                                   </div>
 
-                                  {/* Line Checkmark Indicator Nodes */}
-                                  <div className="grid grid-cols-4 relative z-10">
-                                    {[0, 1, 2, 3].map((idx) => {
-                                      const isPassed = currentStage > idx;
-                                      const isCurrent = currentStage === idx;
-                                      return (
-                                        <div key={idx} className="flex justify-center">
-                                          <div
-                                            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-500 text-xs font-bold ${
-                                              isPassed
-                                                ? 'bg-emerald-600 text-white shadow-sm ring-4 ring-emerald-100 dark:ring-emerald-950/60'
-                                                : isCurrent
-                                                ? 'bg-emerald-600 text-white ring-4 ring-emerald-200 dark:ring-emerald-900/60 animate-pulse'
-                                                : 'bg-white dark:bg-[#1A1410] border-2 border-neutral-300 dark:border-[#3D2C20] text-neutral-300 dark:text-neutral-600'
-                                            }`}
-                                          >
-                                            {isPassed || isCurrent ? (
-                                              <Check className="w-4 h-4" />
-                                            ) : (
-                                              <span className="w-2 h-2 rounded-full bg-neutral-200 dark:bg-neutral-700" />
-                                            )}
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-
-                                {/* FLUID ANIMATED MOVING TRUCK */}
-                                <div
-                                  className="absolute top-0 transition-all duration-1000 ease-out -translate-x-1/2 pointer-events-none z-20 flex flex-col items-center"
-                                  style={{ left: truckLeft }}
-                                >
-                                  <div className="relative animate-truck-bounce">
-                                    <div className="absolute -left-4 top-2 flex flex-col gap-1 animate-speed-wind pointer-events-none">
-                                      <span className="w-3 h-0.5 bg-amber-500 rounded-full" />
-                                      <span className="w-2 h-0.5 bg-emerald-500 rounded-full" />
-                                      <span className="w-3.5 h-0.5 bg-amber-400 rounded-full" />
+                                  <div className="relative">
+                                    {/* Progress Line */}
+                                    <div className="absolute top-3.5 left-[12%] right-[12%] h-1 bg-neutral-200 dark:bg-[#2C211A] rounded-full overflow-hidden">
+                                      <div
+                                        className="h-full bg-gradient-to-r from-rose-500 via-amber-500 to-emerald-500 transition-all duration-1000 ease-out"
+                                        style={{
+                                          width:
+                                            retTrack.stageIndex === 0
+                                              ? '10%'
+                                              : retTrack.stageIndex === 1
+                                              ? '35%'
+                                              : retTrack.stageIndex === 2
+                                              ? '70%'
+                                              : '100%',
+                                        }}
+                                      />
                                     </div>
 
-                                    <div className={`relative px-2.5 py-1 rounded-xl shadow-lg border flex items-center gap-1.5 ${
-                                      currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
-                                        ? 'bg-emerald-700 text-white border-emerald-600'
-                                        : (order.courierStatus === 'RTO_INITIATED' || order.courierStatus === 'RTO_IN_TRANSIT')
-                                        ? 'bg-amber-800 text-white border-amber-700'
-                                        : 'bg-[#1E1611] text-white border-neutral-700'
-                                    }`}>
-                                      <Truck className={`w-4 h-4 ${currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'text-white' : 'text-amber-400'}`} />
-                                      <span className={`text-[9px] font-mono font-bold tracking-tight ${currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'text-white' : 'text-amber-300'}`}>
-                                        {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'DELIVERED' : (order.courierStatus === 'RTO_INITIATED' || order.courierStatus === 'RTO_IN_TRANSIT') ? 'RTO TRANSIT' : 'IN MOTION'}
+                                    {/* Line Checkmark Indicator Nodes */}
+                                    <div className="grid grid-cols-4 relative z-10">
+                                      {[0, 1, 2, 3].map((idx) => {
+                                        const isPassed = retTrack.stageIndex > idx;
+                                        const isCurrent = retTrack.stageIndex === idx;
+                                        return (
+                                          <div key={idx} className="flex justify-center">
+                                            <div
+                                              className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-500 text-xs font-bold ${
+                                                isPassed
+                                                  ? 'bg-rose-600 text-white shadow-sm ring-4 ring-rose-100 dark:ring-rose-950/60'
+                                                  : isCurrent
+                                                  ? 'bg-rose-600 text-white ring-4 ring-rose-200 dark:ring-rose-900/60 animate-pulse'
+                                                  : 'bg-white dark:bg-[#1A1410] border-2 border-neutral-300 dark:border-[#3D2C20] text-neutral-300 dark:text-neutral-600'
+                                              }`}
+                                            >
+                                              {isPassed || isCurrent ? (
+                                                <Check className="w-4 h-4" />
+                                              ) : (
+                                                <span className="w-2 h-2 rounded-full bg-neutral-200 dark:neutral-700" />
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+
+                                  {/* FLUID ANIMATED REVERSE TRUCK */}
+                                  <div
+                                    className="absolute top-10 transition-all duration-1000 ease-out -translate-x-1/2 pointer-events-none z-20 flex flex-col items-center"
+                                    style={{
+                                      left:
+                                        retTrack.stageIndex === 0
+                                          ? '12%'
+                                          : retTrack.stageIndex === 1
+                                          ? '38%'
+                                          : retTrack.stageIndex === 2
+                                          ? '65%'
+                                          : '92%',
+                                    }}
+                                  >
+                                    <div className="relative animate-truck-bounce">
+                                      <div className={`relative px-2.5 py-1 rounded-xl shadow-lg border flex items-center gap-1.5 ${
+                                        retTrack.stageIndex === 3
+                                          ? 'bg-emerald-700 text-white border-emerald-600'
+                                          : 'bg-rose-900 text-white border-rose-800'
+                                      }`}>
+                                        <Truck className="w-4 h-4 text-amber-300" />
+                                        <span className="text-[9px] font-mono font-bold tracking-tight text-white">
+                                          {retTrack.stageIndex === 3 ? 'VERIFIED & COMPLETE' : 'REVERSE PICKUP'}
+                                        </span>
+                                      </div>
+                                      <div className={`w-1.5 h-1.5 mx-auto mt-0.5 rounded-full ${retTrack.stageIndex === 3 ? 'bg-emerald-400' : 'bg-rose-500 animate-ping'}`} />
+                                    </div>
+                                  </div>
+
+                                  {/* 4 REVERSE STAGES CARDS */}
+                                  <div className="grid grid-cols-4 mt-8 gap-2 text-center relative z-10">
+                                    {/* 1. Request Approved */}
+                                    <div className="flex flex-col items-center group">
+                                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                                        retTrack.stageIndex >= 0
+                                          ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
+                                          : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400'
+                                      }`}>
+                                        <RotateCcw className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                                      </div>
+                                      <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Initiated</p>
+                                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">Approved</p>
+                                      <span className="text-[10px] text-neutral-400 font-mono mt-0.5">AWB Issued</span>
+                                    </div>
+
+                                    {/* 2. Pickup Scheduled */}
+                                    <div className="flex flex-col items-center group">
+                                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                                        retTrack.stageIndex >= 1
+                                          ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
+                                          : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400'
+                                      }`}>
+                                        <Clock className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                                      </div>
+                                      <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Scheduled</p>
+                                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">Agent Assigned</p>
+                                      <span className="text-[10px] text-neutral-400 font-mono mt-0.5">Tomorrow</span>
+                                    </div>
+
+                                    {/* 3. Doorstep Verification */}
+                                    <div className="flex flex-col items-center group">
+                                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                                        retTrack.stageIndex >= 2
+                                          ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
+                                          : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400'
+                                      }`}>
+                                        <ShieldCheck className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                                      </div>
+                                      <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Doorstep QC</p>
+                                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                        {retTrack.stageIndex >= 3 ? 'Seal Verified' : 'Inspection'}
+                                      </p>
+                                      <span className="text-[10px] text-neutral-400 font-mono mt-0.5">Item Handover</span>
+                                    </div>
+
+                                    {/* 4. Instant Refund or Exchange Dispatched */}
+                                    <div className="flex flex-col items-center group">
+                                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                                        retTrack.stageIndex === 3
+                                          ? 'bg-emerald-600 text-white border border-emerald-600 shadow-emerald-500/20'
+                                          : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400'
+                                      }`}>
+                                        {retTrack.stageIndex === 3 ? (
+                                          <Check className="w-6 h-6 text-white" strokeWidth={2.5} />
+                                        ) : (
+                                          <Sparkles className="w-5 h-5 text-neutral-400" />
+                                        )}
+                                      </div>
+                                      <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">
+                                        {retTrack.type === 'EXCHANGE' ? 'Exchange Dispatched' : 'Refund Issued'}
+                                      </p>
+                                      <p className={`text-[11px] mt-0.5 ${retTrack.stageIndex === 3 ? 'text-emerald-600 font-semibold' : 'text-neutral-500'}`}>
+                                        {retTrack.stageIndex === 3
+                                          ? (retTrack.type === 'EXCHANGE' ? 'Unit Shipped' : `₹${retTrack.refundAmount?.toLocaleString() || ''} Credited`)
+                                          : 'Final Step'}
+                                      </p>
+                                      <span className="text-[10px] text-neutral-400 font-mono mt-0.5">
+                                        {retTrack.stageIndex === 3 ? 'Complete' : 'Instant'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                /* ORIGINAL FORWARD DELIVERY PIPELINE */
+                                <div className="pt-8 pb-4 px-2 sm:px-6 relative select-none">
+                                  {/* Connecting Progress Line & Nodes (Reference Design Style) */}
+                                  <div className="relative">
+                                    {/* Progress Line */}
+                                    <div className="absolute top-3.5 left-[12%] right-[12%] h-1 bg-neutral-200 dark:bg-[#2C211A] rounded-full overflow-hidden">
+                                      <div
+                                        className="h-full bg-gradient-to-r from-emerald-500 via-teal-500 to-amber-500 transition-all duration-1000 ease-out"
+                                        style={{
+                                          width:
+                                            currentStage === 0
+                                              ? '0%'
+                                              : currentStage === 1
+                                              ? '35%'
+                                              : currentStage === 2
+                                              ? '70%'
+                                              : '100%',
+                                        }}
+                                      />
+                                    </div>
+
+                                    {/* Line Checkmark Indicator Nodes */}
+                                    <div className="grid grid-cols-4 relative z-10">
+                                      {[0, 1, 2, 3].map((idx) => {
+                                        const isPassed = currentStage > idx;
+                                        const isCurrent = currentStage === idx;
+                                        return (
+                                          <div key={idx} className="flex justify-center">
+                                            <div
+                                              className={`w-7 h-7 rounded-full flex items-center justify-center transition-all duration-500 text-xs font-bold ${
+                                                isPassed
+                                                  ? 'bg-emerald-600 text-white shadow-sm ring-4 ring-emerald-100 dark:ring-emerald-950/60'
+                                                  : isCurrent
+                                                  ? 'bg-emerald-600 text-white ring-4 ring-emerald-200 dark:ring-emerald-900/60 animate-pulse'
+                                                  : 'bg-white dark:bg-[#1A1410] border-2 border-neutral-300 dark:border-[#3D2C20] text-neutral-300 dark:text-neutral-600'
+                                              }`}
+                                            >
+                                              {isPassed || isCurrent ? (
+                                                <Check className="w-4 h-4" />
+                                              ) : (
+                                                <span className="w-2 h-2 rounded-full bg-neutral-200 dark:bg-neutral-700" />
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+
+                                  {/* FLUID ANIMATED MOVING TRUCK */}
+                                  <div
+                                    className="absolute top-0 transition-all duration-1000 ease-out -translate-x-1/2 pointer-events-none z-20 flex flex-col items-center"
+                                    style={{ left: truckLeft }}
+                                  >
+                                    <div className="relative animate-truck-bounce">
+                                      <div className="absolute -left-4 top-2 flex flex-col gap-1 animate-speed-wind pointer-events-none">
+                                        <span className="w-3 h-0.5 bg-amber-500 rounded-full" />
+                                        <span className="w-2 h-0.5 bg-emerald-500 rounded-full" />
+                                        <span className="w-3.5 h-0.5 bg-amber-400 rounded-full" />
+                                      </div>
+
+                                      <div className={`relative px-2.5 py-1 rounded-xl shadow-lg border flex items-center gap-1.5 ${
+                                        currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
+                                          ? 'bg-emerald-700 text-white border-emerald-600'
+                                          : (order.courierStatus === 'RTO_INITIATED' || order.courierStatus === 'RTO_IN_TRANSIT')
+                                          ? 'bg-amber-800 text-white border-amber-700'
+                                          : 'bg-[#1E1611] text-white border-neutral-700'
+                                      }`}>
+                                        <Truck className={`w-4 h-4 ${currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'text-white' : 'text-amber-400'}`} />
+                                        <span className={`text-[9px] font-mono font-bold tracking-tight ${currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'text-white' : 'text-amber-300'}`}>
+                                          {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'DELIVERED' : (order.courierStatus === 'RTO_INITIATED' || order.courierStatus === 'RTO_IN_TRANSIT') ? 'RTO TRANSIT' : 'IN MOTION'}
+                                        </span>
+                                      </div>
+
+                                      <div className={`w-1.5 h-1.5 mx-auto mt-0.5 rounded-full ${currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'bg-emerald-400' : 'bg-amber-500 animate-ping'}`} />
+                                    </div>
+                                  </div>
+
+                                  {/* 4 STAGES / MILESTONE CARDS (Reference Design Matching) */}
+                                  <div className="grid grid-cols-4 mt-6 gap-2 text-center relative z-10">
+                                    {/* 1. Confirmation */}
+                                    <div className="flex flex-col items-center group">
+                                      <div
+                                        className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                                          currentStage >= 0
+                                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
+                                            : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
+                                        }`}
+                                      >
+                                        <ShoppingCart className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                                      </div>
+                                      <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Confirmation</p>
+                                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">Order Confirmed</p>
+                                      <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono mt-0.5">
+                                        {new Date(order.createdAt).toLocaleDateString(undefined, {
+                                          month: 'short',
+                                          day: 'numeric',
+                                        })}
                                       </span>
                                     </div>
 
-                                    <div className={`w-1.5 h-1.5 mx-auto mt-0.5 rounded-full ${currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'bg-emerald-400' : 'bg-amber-500 animate-ping'}`} />
+                                    {/* 2. Fulfillment */}
+                                    <div className="flex flex-col items-center group">
+                                      <div
+                                        className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                                          currentStage >= 1
+                                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
+                                            : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
+                                        }`}
+                                      >
+                                        <Box className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
+                                      </div>
+                                      <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Fulfillment</p>
+                                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                        {currentStage >= 1 ? 'Packed & Processed' : 'Packing at Hub'}
+                                      </p>
+                                      <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono mt-0.5">
+                                        {order.awbNumber ? 'Hub Ready' : 'In Queue'}
+                                      </span>
+                                    </div>
+
+                                    {/* 3. Transit */}
+                                    <div className="flex flex-col items-center group">
+                                      <div
+                                        className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                                          currentStage >= 2
+                                            ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
+                                            : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
+                                        }`}
+                                      >
+                                        <Truck className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
+                                      </div>
+                                      <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Transit</p>
+                                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                        {currentStage >= 2 ? 'In Air Transit' : 'Carrier Handover'}
+                                      </p>
+                                      <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono mt-0.5">
+                                        Xpressbees Network
+                                      </span>
+                                    </div>
+
+                                    {/* 4. Delivery */}
+                                    <div className="flex flex-col items-center group">
+                                      <div
+                                        className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                                          currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
+                                            ? 'bg-emerald-600 text-white border border-emerald-600 shadow-emerald-500/20'
+                                            : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
+                                        }`}
+                                      >
+                                        {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? (
+                                          <Check className="w-6 h-6 text-white" strokeWidth={2.5} />
+                                        ) : (
+                                          <Home className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
+                                        )}
+                                      </div>
+                                      <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Delivery</p>
+                                      <p className={`text-[11px] mt-0.5 ${currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-neutral-500 dark:text-neutral-400'}`}>
+                                        {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'Delivered' : 'Doorstep Dispatch'}
+                                      </p>
+                                      <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono mt-0.5">
+                                        {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
+                                          ? (order.deliveredAt ? new Date(order.deliveredAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Today')
+                                          : (tracking?.expectedDelivery || 'Expected soon')}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
-
-                                {/* 4 STAGES / MILESTONE CARDS (Reference Design Matching) */}
-                                <div className="grid grid-cols-4 mt-6 gap-2 text-center relative z-10">
-                                  {/* 1. Confirmation */}
-                                  <div className="flex flex-col items-center group">
-                                    <div
-                                      className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-                                        currentStage >= 0
-                                          ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
-                                          : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
-                                      }`}
-                                    >
-                                      <ShoppingCart className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                                    </div>
-                                    <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Confirmation</p>
-                                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">Order Confirmed</p>
-                                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono mt-0.5">
-                                      {new Date(order.createdAt).toLocaleDateString(undefined, {
-                                        month: 'short',
-                                        day: 'numeric',
-                                      })}
-                                    </span>
-                                  </div>
-
-                                  {/* 2. Fulfillment */}
-                                  <div className="flex flex-col items-center group">
-                                    <div
-                                      className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-                                        currentStage >= 1
-                                          ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
-                                          : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
-                                      }`}
-                                    >
-                                      <Box className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
-                                    </div>
-                                    <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Fulfillment</p>
-                                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
-                                      {currentStage >= 1 ? 'Packed & Processed' : 'Packing at Hub'}
-                                    </p>
-                                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono mt-0.5">
-                                      {order.awbNumber ? 'Hub Ready' : 'In Queue'}
-                                    </span>
-                                  </div>
-
-                                  {/* 3. Transit */}
-                                  <div className="flex flex-col items-center group">
-                                    <div
-                                      className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-                                        currentStage >= 2
-                                          ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
-                                          : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
-                                      }`}
-                                    >
-                                      <Truck className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
-                                    </div>
-                                    <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Transit</p>
-                                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
-                                      {currentStage >= 2 ? 'In Air Transit' : 'Carrier Handover'}
-                                    </p>
-                                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono mt-0.5">
-                                      Xpressbees Network
-                                    </span>
-                                  </div>
-
-                                  {/* 4. Delivery */}
-                                  <div className="flex flex-col items-center group">
-                                    <div
-                                      className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-                                        currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
-                                          ? 'bg-emerald-600 text-white border border-emerald-600 shadow-emerald-500/20'
-                                          : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
-                                      }`}
-                                    >
-                                      {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? (
-                                        <Check className="w-6 h-6 text-white" strokeWidth={2.5} />
-                                      ) : (
-                                        <Home className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
-                                      )}
-                                    </div>
-                                    <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Delivery</p>
-                                    <p className={`text-[11px] mt-0.5 ${currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-neutral-500 dark:text-neutral-400'}`}>
-                                      {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'Delivered' : 'Doorstep Dispatch'}
-                                    </p>
-                                    <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono mt-0.5">
-                                      {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
-                                        ? (order.deliveredAt ? new Date(order.deliveredAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Today')
-                                        : (tracking?.expectedDelivery || 'Expected soon')}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
+                              )}
 
                               {/* LIVE COURIER SCAN TIMELINE */}
                               <div className="pt-4 border-t border-neutral-100 dark:border-[#2C211A] space-y-3">
@@ -1198,6 +1455,40 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                   <div className="py-6 flex items-center justify-center gap-2 text-neutral-400 dark:text-neutral-500 text-xs">
                                     <Loader2 className="w-4 h-4 animate-spin text-amber-600 dark:text-amber-400" />
                                     <span>Fetching live courier updates...</span>
+                                  </div>
+                                ) : currentView === 'return' && retTrack ? (
+                                  /* REVERSE MILESTONES (Amazon Return/Exchange style) */
+                                  <div className="space-y-3 relative before:absolute before:top-2 before:bottom-2 before:left-[11px] before:w-0.5 before:bg-neutral-200 dark:before:bg-[#2C211A] pl-1">
+                                    {retTrack.milestones.map((m: any, idx: number) => (
+                                      <div key={idx} className="relative flex items-start gap-3">
+                                        <div className={`w-6 h-6 rounded-full text-white flex items-center justify-center z-10 shrink-0 shadow-2xs ${
+                                          m.status === 'REFUNDED' || m.status === 'EXCHANGE_DISPATCHED'
+                                            ? 'bg-emerald-600'
+                                            : m.status === 'REJECTED'
+                                            ? 'bg-rose-600'
+                                            : 'bg-rose-500'
+                                        }`}>
+                                          <Check className="w-3.5 h-3.5" />
+                                        </div>
+                                        <div className="bg-neutral-50/80 dark:bg-[#231A14] p-3 rounded-xl border border-neutral-200/80 dark:border-[#2C211A] shadow-2xs flex-1">
+                                          <div className="flex flex-wrap items-center justify-between gap-1">
+                                            <p className="font-semibold text-neutral-900 dark:text-[#EDE4DA] text-xs">{m.title}</p>
+                                            <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500">
+                                              {m.time}
+                                            </span>
+                                          </div>
+                                          <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5 flex items-center gap-1">
+                                            <MapPin className="w-3 h-3 text-neutral-400 dark:text-neutral-500" />
+                                            <span>{m.location}</span>
+                                          </p>
+                                          {m.description && (
+                                            <p className="text-[11px] text-neutral-600 dark:text-neutral-300 mt-1 pl-4 border-l border-rose-200 dark:border-rose-900/40">
+                                              {m.description}
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
                                 ) : (() => {
                                   const isDelivered = currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED';
@@ -1414,6 +1705,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                               >
                                 <RotateCcw className="w-3.5 h-3.5" />
                                 <span>Return or Exchange</span>
+                              </button>
+                            )}
+
+                            {/* View Return/Exchange Live Tracking (If active) */}
+                            {hasReturnExchange && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  toggleOrderCard(order.id);
+                                  toggleOrderSubDropdown(order, 'tracking');
+                                  setTrackingViewMode((prev) => ({ ...prev, [order.id]: 'return' }));
+                                }}
+                                className="px-3.5 py-1.5 rounded-full border border-rose-400 dark:border-rose-800 bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>Track Return & Refund</span>
                               </button>
                             )}
                           </div>
@@ -1922,6 +2229,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
             if (user?.id) {
               const freshOrders = await api.getUserOrders(user.id);
               setOrders(freshOrders);
+              if (returnModalOrder) {
+                // Refresh tracking and automatically switch to return tracking mode
+                try {
+                  const refreshedTracking = await api.trackOrderShipment(returnModalOrder.id);
+                  setTrackingMap((prev) => ({ ...prev, [returnModalOrder.id]: refreshedTracking }));
+                  setTrackingViewMode((prev) => ({ ...prev, [returnModalOrder.id]: 'return' }));
+                  setOrderDropdownTab((prev) => ({ ...prev, [returnModalOrder.id]: 'tracking' }));
+                  setExpandedOrderId(returnModalOrder.id);
+                } catch {}
+              }
             }
           }}
         />

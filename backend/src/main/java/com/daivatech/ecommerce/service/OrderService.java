@@ -531,8 +531,15 @@ public class OrderService {
                 batchStockService.restoreBatchStock(item.getOriginalProductId(), 1, order.getOrderNumber(), "Returned item restocked");
             }
         } else {
-            // EXCHANGE flow
+            // EXCHANGE flow: create replacement tracking identifiers
+            String replOrderNo = order.getOrderNumber() + "-EXCH";
+            String replAwb = "XPB-EXCH-" + Math.abs((order.getOrderNumber() + "-REP").hashCode() % 900000 + 100000);
+            item.setReplacementOrderNumber(replOrderNo);
+            item.setReplacementAwbNumber(replAwb);
+            item.setReplacementTrackingUrl("https://www.xpressbees.com/track?awb=" + replAwb);
+            item.setReplacementCourierStatus("IN_TRANSIT");
             item.setStatus("EXCHANGE_DISPATCHED");
+
             order.setOrderStatus("EXCHANGED");
             orderRepository.save(order);
 
@@ -555,5 +562,14 @@ public class OrderService {
 
     public List<com.daivatech.ecommerce.entity.OrderReturnExchange> getAllReturnExchanges() {
         return returnExchangeRepository.findAllByOrderByCreatedAtDesc();
+    }
+
+    public com.daivatech.ecommerce.entity.OrderReturnExchange getReturnExchangeById(Long id) {
+        return returnExchangeRepository.findById(id).orElse(null);
+    }
+
+    public com.daivatech.ecommerce.entity.OrderReturnExchange saveReturnExchange(com.daivatech.ecommerce.entity.OrderReturnExchange item) {
+        item.setUpdatedAt(LocalDateTime.now());
+        return returnExchangeRepository.save(item);
     }
 }

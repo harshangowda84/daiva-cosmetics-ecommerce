@@ -37,6 +37,13 @@ public class OrderReturnExchange {
     private Long exchangeProductId;
     private String exchangeProductName;
 
+    // Exchange Replacement Order
+    private Long replacementOrderId;
+    private String replacementOrderNumber;
+    private String replacementAwbNumber;
+    private String replacementTrackingUrl;
+    private String replacementCourierStatus; // "PENDING", "MANIFESTED", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED"
+
     // Status: "REQUESTED", "PICKUP_SCHEDULED", "OUT_FOR_PICKUP", "PICKED_UP_EXAMINED", "COMPLETED", "REJECTED"
     private String status = "REQUESTED";
 
@@ -101,6 +108,21 @@ public class OrderReturnExchange {
 
     public String getExchangeProductName() { return exchangeProductName; }
     public void setExchangeProductName(String exchangeProductName) { this.exchangeProductName = exchangeProductName; }
+
+    public Long getReplacementOrderId() { return replacementOrderId; }
+    public void setReplacementOrderId(Long replacementOrderId) { this.replacementOrderId = replacementOrderId; }
+
+    public String getReplacementOrderNumber() { return replacementOrderNumber; }
+    public void setReplacementOrderNumber(String replacementOrderNumber) { this.replacementOrderNumber = replacementOrderNumber; }
+
+    public String getReplacementAwbNumber() { return replacementAwbNumber; }
+    public void setReplacementAwbNumber(String replacementAwbNumber) { this.replacementAwbNumber = replacementAwbNumber; }
+
+    public String getReplacementTrackingUrl() { return replacementTrackingUrl; }
+    public void setReplacementTrackingUrl(String replacementTrackingUrl) { this.replacementTrackingUrl = replacementTrackingUrl; }
+
+    public String getReplacementCourierStatus() { return replacementCourierStatus; }
+    public void setReplacementCourierStatus(String replacementCourierStatus) { this.replacementCourierStatus = replacementCourierStatus; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

@@ -565,6 +565,27 @@ public class AdminController {
         }
     }
 
+    /**
+     * Advance reverse pickup status for logistics simulation (e.g. Agent Out for Pickup)
+     */
+    @PostMapping("/returns/{returnId}/simulate-status")
+    public ResponseEntity<?> simulateReturnStatus(@PathVariable Long returnId, @RequestBody Map<String, String> payload) {
+        try {
+            String newStatus = payload.get("status"); // "OUT_FOR_PICKUP"
+            com.daivatech.ecommerce.entity.OrderReturnExchange item = orderService.getReturnExchangeById(returnId);
+            if (item == null) {
+                return ResponseEntity.badRequest().body(Map.of("error", "Return not found"));
+            }
+            if (newStatus != null && !newStatus.isBlank()) {
+                item.setCourierStatus(newStatus);
+                item.setStatus(newStatus);
+            }
+            return ResponseEntity.ok(orderService.saveReturnExchange(item));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @GetMapping("/returns")
     public ResponseEntity<?> getAllReturns() {
         return ResponseEntity.ok(orderService.getAllReturnExchanges());
