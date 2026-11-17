@@ -148,6 +148,11 @@ export interface OrderReturnExchange {
   refundAmount?: number;
   refundId?: string;
   refundStatus?: string;
+  refundMode?: string;
+  bankAccountNumber?: string;
+  bankIfscCode?: string;
+  bankAccountHolderName?: string;
+  bankName?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -169,6 +174,11 @@ export interface ReturnExchangeTrackingInfo {
   refundAmount?: number;
   refundStatus?: string;
   refundId?: string;
+  refundMode?: string;
+  bankAccountNumber?: string;
+  bankIfscCode?: string;
+  bankAccountHolderName?: string;
+  bankName?: string;
   replacementOrderId?: number;
   replacementOrderNumber?: string;
   replacementAwbNumber?: string;

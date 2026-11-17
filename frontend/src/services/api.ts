@@ -599,6 +599,10 @@ export const api = {
     proofImageUrl?: string;
     originalProductId?: number;
     exchangeProductId?: number;
+    bankAccountNumber?: string;
+    bankIfscCode?: string;
+    bankAccountHolderName?: string;
+    bankName?: string;
   }): Promise<import('../types').OrderReturnExchange> {
     const res = await fetch(`${BASE_URL}/orders/${orderId}/return-exchange`, {
       method: 'POST',

@@ -69,9 +69,14 @@ public class OrderController {
             String proofImageUrl = (String) body.get("proofImageUrl");
             Long originalProductId = body.get("originalProductId") != null ? Long.valueOf(body.get("originalProductId").toString()) : null;
             Long exchangeProductId = body.get("exchangeProductId") != null ? Long.valueOf(body.get("exchangeProductId").toString()) : null;
+            String bankAccountNumber = (String) body.get("bankAccountNumber");
+            String bankIfscCode = (String) body.get("bankIfscCode");
+            String bankAccountHolderName = (String) body.get("bankAccountHolderName");
+            String bankName = (String) body.get("bankName");
 
             com.daivatech.ecommerce.entity.OrderReturnExchange result = orderService.requestReturnOrExchange(
-                    orderId, userId, type, reasonCategory, detailedReason, proofImageUrl, originalProductId, exchangeProductId
+                    orderId, userId, type, reasonCategory, detailedReason, proofImageUrl, originalProductId, exchangeProductId,
+                    bankAccountNumber, bankIfscCode, bankAccountHolderName, bankName
             );
             return ResponseEntity.ok(result);
         } catch (Exception e) {

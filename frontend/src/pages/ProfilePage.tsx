@@ -1302,8 +1302,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                         }`}>
                                           <RotateCcw className="w-5 h-5 text-rose-600 dark:text-rose-400" />
                                         </div>
-                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Initiated</p>
-                                        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">Approved</p>
+                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Return Confirmed</p>
+                                        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">Pickup Booked</p>
                                         <span className="text-[10px] text-neutral-400 font-mono mt-0.5">AWB Issued</span>
                                       </div>
 
@@ -1355,8 +1355,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                         </p>
                                         <p className={`text-[11px] mt-0.5 ${retTrack.stageIndex === 3 ? 'text-emerald-600 font-semibold' : 'text-neutral-500'}`}>
                                           {retTrack.stageIndex === 3
-                                            ? (retTrack.type === 'EXCHANGE' ? 'Unit Shipped' : `₹${retTrack.refundAmount?.toLocaleString() || ''} Credited`)
-                                            : 'Final Step'}
+                                            ? (retTrack.type === 'EXCHANGE'
+                                                ? 'Unit Shipped'
+                                                : retTrack.refundMode === 'BANK_TRANSFER'
+                                                ? `₹${retTrack.refundAmount?.toLocaleString() || ''} Transferred to Bank`
+                                                : `₹${retTrack.refundAmount?.toLocaleString() || ''} Credited to Original Mode`)
+                                            : (retTrack.type === 'EXCHANGE' ? 'Doorstep Handover' : 'Refund Processing')}
                                         </p>
                                         <span className="text-[10px] text-neutral-400 font-mono mt-0.5">
                                           {retTrack.stageIndex === 3 ? 'Complete' : 'Instant'}
@@ -1756,7 +1760,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300">
                                 REFUNDED
                               </span>
-                            ) : order.paymentStatus === 'PAID' ? (
+                            ) : order.paymentStatus === 'PAID' || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? (
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300">
                                 PAID
                               </span>

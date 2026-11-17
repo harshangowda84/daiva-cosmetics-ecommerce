@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RotateCcw, RefreshCw, X, AlertCircle, CheckCircle2, ShieldCheck, Camera, ArrowRight, Package } from 'lucide-react';
+import { RotateCcw, RefreshCw, X, AlertCircle, CheckCircle2, ShieldCheck, Camera, ArrowRight, Building, CreditCard } from 'lucide-react';
 import { CustomerOrder, OrderItem, Product } from '../types';
 import { api } from '../services/api';
 import { getFullImageUrl, handleImageError } from '../utils/image';
@@ -25,6 +25,15 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
   const [detailedReason, setDetailedReason] = useState<string>('');
   const [proofImageUrl, setProofImageUrl] = useState<string>('');
   const [exchangeProductId, setExchangeProductId] = useState<number>(0);
+
+  // Bank details for COD return refunds
+  const isCodOrder = (order.paymentMethod || '').toUpperCase() === 'COD';
+  const [accountHolderName, setAccountHolderName] = useState<string>(order.customerName || '');
+  const [accountNumber, setAccountNumber] = useState<string>('');
+  const [confirmAccountNumber, setConfirmAccountNumber] = useState<string>('');
+  const [ifscCode, setIfscCode] = useState<string>('');
+  const [bankName, setBankName] = useState<string>('');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [successData, setSuccessData] = useState<any>(null);
@@ -59,6 +68,29 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
       return;
     }
 
+    if (mode === 'RETURN' && isCodOrder) {
+      if (!accountHolderName.trim()) {
+        setError('Please enter the Account Holder Name for your bank refund.');
+        return;
+      }
+      if (!accountNumber.trim() || accountNumber.trim().length < 8) {
+        setError('Please enter a valid Bank Account Number.');
+        return;
+      }
+      if (accountNumber.trim() !== confirmAccountNumber.trim()) {
+        setError('Account numbers do not match. Please verify.');
+        return;
+      }
+      if (!ifscCode.trim() || ifscCode.trim().length < 5) {
+        setError('Please enter a valid IFSC code.');
+        return;
+      }
+      if (!bankName.trim()) {
+        setError('Please enter your Bank Name.');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       const res = await api.requestReturnOrExchange(order.id, {
@@ -69,6 +101,10 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
         proofImageUrl,
         originalProductId: selectedOrderItem?.productId,
         exchangeProductId: mode === 'EXCHANGE' ? exchangeProductId : undefined,
+        bankAccountNumber: (mode === 'RETURN' && isCodOrder) ? accountNumber.trim() : undefined,
+        bankIfscCode: (mode === 'RETURN' && isCodOrder) ? ifscCode.trim().toUpperCase() : undefined,
+        bankAccountHolderName: (mode === 'RETURN' && isCodOrder) ? accountHolderName.trim() : undefined,
+        bankName: (mode === 'RETURN' && isCodOrder) ? bankName.trim() : undefined,
       });
       setSuccessData(res);
       onSuccess();
@@ -81,7 +117,7 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="relative bg-white dark:bg-[#1A1410] rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-neutral-200 dark:border-[#2C211A] overflow-hidden max-h-[90vh] flex flex-col">
+      <div className="relative bg-white dark:bg-[#1A1410] rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-neutral-200 dark:border-[#2C211A] overflow-hidden max-h-[92vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-neutral-100 dark:border-[#2C211A]">
           <div className="flex items-center gap-2.5">
@@ -97,7 +133,7 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-neutral-100 dark:bg-[#251D18] hover:bg-neutral-200 dark:hover:bg-[#33261D] text-neutral-500 flex items-center justify-center transition"
+            className="w-8 h-8 rounded-full bg-neutral-100 dark:bg-[#251D18] hover:bg-neutral-200 dark:hover:bg-[#33261D] text-neutral-500 flex items-center justify-center transition cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -132,25 +168,29 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-neutral-500">Refund Settlement:</span>
-                <span className="font-semibold text-emerald-600">Instant Refund upon courier pickup inspection</span>
+                <span className="font-semibold text-emerald-600">
+                  {isCodOrder
+                    ? `Bank Transfer (${bankName} - A/C ending in ${accountNumber.slice(-4)})`
+                    : 'Instant Refund to original payment method (UPI / Card)'}
+                </span>
               </div>
             </div>
 
             <button
               onClick={onClose}
-              className="px-6 py-2.5 rounded-full bg-[#1E1611] text-white text-xs font-bold hover:bg-rose-700 transition"
+              className="px-6 py-2.5 rounded-full bg-[#1E1611] text-white text-xs font-bold hover:bg-rose-700 transition cursor-pointer"
             >
               Done & View Order
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="overflow-y-auto py-4 space-y-4 text-xs">
+          <form onSubmit={handleSubmit} className="overflow-y-auto py-4 space-y-4 text-xs pr-1">
             {/* Type Switcher: Return vs Exchange */}
             <div className="flex bg-[#FAF9F6] dark:bg-[#221914] p-1 rounded-2xl border border-neutral-200 dark:border-[#2C211A] text-xs font-semibold">
               <button
                 type="button"
                 onClick={() => { setMode('RETURN'); setReasonCategory('DAMAGED_LEAKING'); }}
-                className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1.5 ${
+                className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   mode === 'RETURN' ? 'bg-[#1E1611] dark:bg-rose-900 text-white shadow-xs' : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900'
                 }`}
               >
@@ -160,7 +200,7 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
               <button
                 type="button"
                 onClick={() => { setMode('EXCHANGE'); setReasonCategory('WRONG_SHADE'); }}
-                className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1.5 ${
+                className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   mode === 'EXCHANGE' ? 'bg-[#1E1611] dark:bg-rose-900 text-white shadow-xs' : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900'
                 }`}
               >
@@ -250,6 +290,109 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
               </div>
             )}
 
+            {/* REFUND DESTINATION LOGIC (COD vs Prepaid) */}
+            {mode === 'RETURN' && (
+              isCodOrder ? (
+                /* Bank Account Details Form for Cash on Delivery Orders */
+                <div className="p-3.5 bg-neutral-50/90 dark:bg-[#201813] border border-neutral-200 dark:border-[#2C211A] rounded-2xl space-y-3">
+                  <div className="flex items-center gap-2 text-neutral-900 dark:text-[#EDE4DA]">
+                    <Building className="w-4 h-4 text-rose-600 shrink-0" />
+                    <div>
+                      <p className="font-bold text-xs">Bank Account for Refund (COD Order)</p>
+                      <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                        Since this order was paid via Cash on Delivery, your refund will be deposited directly to your bank account upon pickup.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                    <div>
+                      <label className="block text-[10px] font-semibold text-neutral-700 dark:text-neutral-300 mb-0.5">
+                        Account Holder Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={accountHolderName}
+                        onChange={(e) => setAccountHolderName(e.target.value)}
+                        placeholder="As shown in bank passbook"
+                        required
+                        className="w-full p-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#1A1410] text-xs text-neutral-900 dark:text-[#EDE4DA]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-semibold text-neutral-700 dark:text-neutral-300 mb-0.5">
+                        Bank Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={bankName}
+                        onChange={(e) => setBankName(e.target.value)}
+                        placeholder="e.g. HDFC Bank, SBI, ICICI"
+                        required
+                        className="w-full p-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#1A1410] text-xs text-neutral-900 dark:text-[#EDE4DA]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-semibold text-neutral-700 dark:text-neutral-300 mb-0.5">
+                        Bank Account Number *
+                      </label>
+                      <input
+                        type="password"
+                        value={accountNumber}
+                        onChange={(e) => setAccountNumber(e.target.value)}
+                        placeholder="Enter account number"
+                        required
+                        className="w-full p-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#1A1410] text-xs text-neutral-900 dark:text-[#EDE4DA]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-semibold text-neutral-700 dark:text-neutral-300 mb-0.5">
+                        Confirm Account Number *
+                      </label>
+                      <input
+                        type="text"
+                        value={confirmAccountNumber}
+                        onChange={(e) => setConfirmAccountNumber(e.target.value)}
+                        placeholder="Re-enter account number"
+                        required
+                        className="w-full p-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#1A1410] text-xs text-neutral-900 dark:text-[#EDE4DA]"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-[10px] font-semibold text-neutral-700 dark:text-neutral-300 mb-0.5">
+                        IFSC Code *
+                      </label>
+                      <input
+                        type="text"
+                        value={ifscCode}
+                        onChange={(e) => setIfscCode(e.target.value.toUpperCase())}
+                        placeholder="e.g. HDFC0001234"
+                        required
+                        className="w-full p-2 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#1A1410] text-xs font-mono uppercase text-neutral-900 dark:text-[#EDE4DA]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Prepaid (UPI / Card / Net Banking) Refund Notice */
+                <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 rounded-2xl flex items-start gap-2.5">
+                  <CreditCard className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-bold text-emerald-900 dark:text-emerald-300">
+                      Refund to Original Payment Mode ({order.paymentMethod || 'UPI/Card'})
+                    </p>
+                    <p className="text-[11px] text-emerald-800/90 dark:text-emerald-400/90 mt-0.5 leading-relaxed">
+                      As this order was paid online, the refund of <strong>₹{order.totalAmount.toLocaleString()}</strong> will be directly credited to your original payment mode (Razorpay / UPI / Card / Net Banking) without needing bank details.
+                    </p>
+                  </div>
+                </div>
+              )
+            )}
+
             {/* Detailed Notes */}
             <div>
               <label className="font-semibold text-neutral-800 dark:text-neutral-200 block mb-1">
@@ -283,10 +426,10 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
             <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl space-y-1 text-[11px] text-amber-800 dark:text-amber-300">
               <div className="flex items-center gap-1.5 font-bold">
                 <ShieldCheck className="w-4 h-4 text-amber-600" />
-                <span>Doorstep Inspection & Instant Refund</span>
+                <span>Doorstep Inspection & Guaranteed Refund</span>
               </div>
               <p className="leading-relaxed">
-                XpressBees courier will verify the cosmetic container and batch seal at your doorstep. Upon pickup confirmation, your refund of <strong>₹{order.totalAmount.toLocaleString()}</strong> will be instantly credited via Razorpay / Original Payment Method.
+                XpressBees courier will verify the cosmetic container and batch seal at your doorstep. Upon pickup confirmation, your refund of <strong>₹{order.totalAmount.toLocaleString()}</strong> will be processed {isCodOrder ? 'to your submitted bank account' : 'instantly to your original payment mode'}.
               </p>
             </div>
 
@@ -294,7 +437,7 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 font-semibold"
+                className="px-4 py-2 rounded-xl border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 font-semibold cursor-pointer"
               >
                 Cancel
               </button>

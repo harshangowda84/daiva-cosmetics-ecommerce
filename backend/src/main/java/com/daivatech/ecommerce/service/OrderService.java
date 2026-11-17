@@ -273,6 +273,10 @@ public class OrderService {
         order.setOrderStatus("DELIVERED");
         order.setCourierStatus("DELIVERED");
         order.setDeliveredAt(LocalDateTime.now());
+        // For COD orders, delivery also means payment collected / paid
+        if ("COD".equalsIgnoreCase(order.getPaymentMethod()) || "PENDING".equalsIgnoreCase(order.getPaymentStatus())) {
+            order.setPaymentStatus("PAID");
+        }
 
         // Sync with Zoho
         if (order.getZohoSalesOrderId() != null && !order.getZohoSalesOrderId().isBlank()) {
@@ -424,7 +428,11 @@ public class OrderService {
             String detailedReason,
             String proofImageUrl,
             Long originalProductId,
-            Long exchangeProductId
+            Long exchangeProductId,
+            String bankAccountNumber,
+            String bankIfscCode,
+            String bankAccountHolderName,
+            String bankName
     ) {
         CustomerOrder order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found with ID: " + orderId));
@@ -450,6 +458,20 @@ public class OrderService {
         req.setExchangeProductId(exchangeProductId);
         if (exchangeProductId != null) {
             productRepository.findById(exchangeProductId).ifPresent(p -> req.setExchangeProductName(p.getName()));
+        }
+
+        // Refund method configuration:
+        boolean isCod = "COD".equalsIgnoreCase(order.getPaymentMethod());
+        if ("RETURN".equalsIgnoreCase(type)) {
+            if (isCod) {
+                req.setRefundMode("BANK_TRANSFER");
+                req.setBankAccountNumber(bankAccountNumber);
+                req.setBankIfscCode(bankIfscCode);
+                req.setBankAccountHolderName(bankAccountHolderName);
+                req.setBankName(bankName);
+            } else {
+                req.setRefundMode("ORIGINAL_PAYMENT_MODE");
+            }
         }
 
         // Automatically book XpressBees reverse pickup

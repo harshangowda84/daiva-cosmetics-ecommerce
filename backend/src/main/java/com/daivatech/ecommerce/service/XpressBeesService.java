@@ -477,14 +477,20 @@ public class XpressBeesService {
             if ("RETURN".equalsIgnoreCase(type)) {
                 // Milestone 4 for RETURN: Instant Refund
                 String refId = item.getRefundId() != null ? item.getRefundId() : "rfnd_" + System.currentTimeMillis();
+                boolean isBank = "BANK_TRANSFER".equalsIgnoreCase(item.getRefundMode());
+                String refundLocation = isBank ? (item.getBankName() != null ? item.getBankName() : "Bank Account") : "Razorpay Payment Gateway";
+                String refundDescription = isBank
+                        ? "Refund of ₹" + (item.getRefundAmount() != null ? item.getRefundAmount() : (order != null ? order.getTotalAmount() : 0)) + " transferred to Bank Account ending in " + (item.getBankAccountNumber() != null && item.getBankAccountNumber().length() > 4 ? item.getBankAccountNumber().substring(item.getBankAccountNumber().length() - 4) : "****") + " (IFSC: " + (item.getBankIfscCode() != null ? item.getBankIfscCode() : "N/A") + "). Ref ID: " + refId
+                        : "Refund credited to original payment method. Ref ID: " + refId;
+
                 milestones.add(Map.of(
                         "status", "REFUNDED",
-                        "title", "Instant Refund Issued (₹" + (item.getRefundAmount() != null ? item.getRefundAmount() : (order != null ? order.getTotalAmount() : 0)) + ")",
+                        "title", "Refund Issued (₹" + (item.getRefundAmount() != null ? item.getRefundAmount() : (order != null ? order.getTotalAmount() : 0)) + ")",
                         "time", examTime.plusMinutes(2).format(dtf),
-                        "location", "Razorpay Payment Gateway",
-                        "description", "Refund credited to original payment method. Ref ID: " + refId
+                        "location", refundLocation,
+                        "description", refundDescription
                 ));
-                nextActionEstimate = "Refund complete • Credited to original payment method";
+                nextActionEstimate = isBank ? "Refund complete • Credited to Bank Account" : "Refund complete • Credited to original payment method";
             } else {
                 // Milestone 4 for EXCHANGE: Replacement Item Dispatched
                 String repAwb = item.getReplacementAwbNumber() != null ? item.getReplacementAwbNumber() : "XPB-EXCH-" + System.currentTimeMillis() % 100000;
@@ -538,6 +544,11 @@ public class XpressBeesService {
         result.put("refundAmount", item.getRefundAmount());
         result.put("refundStatus", item.getRefundStatus());
         result.put("refundId", item.getRefundId());
+        result.put("refundMode", item.getRefundMode());
+        result.put("bankAccountNumber", item.getBankAccountNumber());
+        result.put("bankIfscCode", item.getBankIfscCode());
+        result.put("bankAccountHolderName", item.getBankAccountHolderName());
+        result.put("bankName", item.getBankName());
         result.put("replacementOrderId", item.getReplacementOrderId());
         result.put("replacementOrderNumber", item.getReplacementOrderNumber());
         result.put("replacementAwbNumber", item.getReplacementAwbNumber());

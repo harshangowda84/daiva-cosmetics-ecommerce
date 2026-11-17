@@ -58,6 +58,11 @@ public class OrderReturnExchange {
     private BigDecimal refundAmount = BigDecimal.ZERO;
     private String refundId;
     private String refundStatus = "NONE"; // "NONE", "INITIATED", "REFUNDED"
+    private String refundMode; // "ORIGINAL_PAYMENT_MODE" or "BANK_TRANSFER"
+    private String bankAccountNumber;
+    private String bankIfscCode;
+    private String bankAccountHolderName;
+    private String bankName;
 
     private LocalDateTime createdAt = LocalDateTime.now();
     private LocalDateTime updatedAt = LocalDateTime.now();
@@ -150,6 +155,21 @@ public class OrderReturnExchange {
 
     public String getRefundStatus() { return refundStatus; }
     public void setRefundStatus(String refundStatus) { this.refundStatus = refundStatus; }
+
+    public String getRefundMode() { return refundMode; }
+    public void setRefundMode(String refundMode) { this.refundMode = refundMode; }
+
+    public String getBankAccountNumber() { return bankAccountNumber; }
+    public void setBankAccountNumber(String bankAccountNumber) { this.bankAccountNumber = bankAccountNumber; }
+
+    public String getBankIfscCode() { return bankIfscCode; }
+    public void setBankIfscCode(String bankIfscCode) { this.bankIfscCode = bankIfscCode; }
+
+    public String getBankAccountHolderName() { return bankAccountHolderName; }
+    public void setBankAccountHolderName(String bankAccountHolderName) { this.bankAccountHolderName = bankAccountHolderName; }
+
+    public String getBankName() { return bankName; }
+    public void setBankName(String bankName) { this.bankName = bankName; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
