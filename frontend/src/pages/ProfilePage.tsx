@@ -1799,31 +1799,33 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                           <div className="flex items-center gap-2 flex-wrap">
                             {/* Customer Cancel Order / Cancel Return Button */}
                             {hasReturnExchange ? (
-                              /* When Return or Exchange is active, show Cancel Return button */
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  if (retTrack?.returnExchangeId) {
-                                    handleCancelReturnRequest(order.id, retTrack.returnExchangeId);
-                                  } else {
-                                    try {
-                                      const rets = await api.getOrderReturnExchanges(order.id);
-                                      const active = rets.find((r) => r.status === 'REQUESTED' || r.status === 'PICKUP_SCHEDULED');
-                                      if (active) {
-                                        handleCancelReturnRequest(order.id, active.id);
-                                      } else {
-                                        alert('No active return request to cancel.');
+                              /* When Return or Exchange is active and not yet completed, show Cancel Return button */
+                              (retTrack?.currentStatus !== 'COMPLETED' && order.orderStatus !== 'RETURNED' && order.orderStatus !== 'EXCHANGED') && (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (retTrack?.returnExchangeId) {
+                                      handleCancelReturnRequest(order.id, retTrack.returnExchangeId);
+                                    } else {
+                                      try {
+                                        const rets = await api.getOrderReturnExchanges(order.id);
+                                        const active = rets.find((r) => r.status === 'REQUESTED' || r.status === 'PICKUP_SCHEDULED');
+                                        if (active) {
+                                          handleCancelReturnRequest(order.id, active.id);
+                                        } else {
+                                          alert('No active return request to cancel.');
+                                        }
+                                      } catch (e: any) {
+                                        alert(e.message || 'Failed to cancel return');
                                       }
-                                    } catch (e: any) {
-                                      alert(e.message || 'Failed to cancel return');
                                     }
-                                  }
-                                }}
-                                className="px-3.5 py-1.5 rounded-full border border-red-300 dark:border-red-900/60 bg-red-50/50 dark:bg-red-950/30 text-red-700 dark:text-red-400 text-xs font-semibold hover:bg-red-100 transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
-                              >
-                                <XCircle className="w-3.5 h-3.5" />
-                                <span>Cancel Return</span>
-                              </button>
+                                  }}
+                                  className="px-3.5 py-1.5 rounded-full border border-red-300 dark:border-red-900/60 bg-red-50/50 dark:bg-red-950/30 text-red-700 dark:text-red-400 text-xs font-semibold hover:bg-red-100 transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <XCircle className="w-3.5 h-3.5" />
+                                  <span>Cancel Return</span>
+                                </button>
+                              )
                             ) : (
                               order.orderStatus !== 'DELIVERED' && order.orderStatus !== 'CANCELLED' && order.orderStatus !== 'RETURNED' && (
                                 <button
@@ -1837,8 +1839,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                               )
                             )}
 
-                            {/* Return or Exchange (Delivered items) */}
-                            {order.orderStatus === 'DELIVERED' && (
+                            {/* Return or Exchange (Only for delivered items with NO active return/exchange) */}
+                            {order.orderStatus === 'DELIVERED' && !hasReturnExchange && (
                               <button
                                 type="button"
                                 onClick={() => setReturnModalOrder(order)}
