@@ -4,6 +4,17 @@ frontend/node_modules/
 frontend/dist/
 *.local
 
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+*.env
+
+# Local H2 Database files
+backend/data/
+*.mv.db
+*.trace.db
+
 # Java / Backend build output
 backend/target/
 target/

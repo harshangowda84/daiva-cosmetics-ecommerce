@@ -27,30 +27,30 @@ spring:
         web-allow-others: true
 
 zoho:
-  accounts-url: "https://accounts.zoho.in"
-  inventory-url: "https://www.zohoapis.in/inventory/v1"
-  client-id: "1000.AAQ9NWLJ0QD608ND0O9ON35P8PE7GU"
-  client-secret: "1611ec37727854b77b63b62ad82e6177ca85a6d6db"
-  refresh-token: "1000.ed37f81b8a2819a61ce78b72e7ca8307.09dce057ccbb175eb2737739720dd3fe"
-  organization-id: "60094669110"
+  accounts-url: "${ZOHO_ACCOUNTS_URL:https://accounts.zoho.in}"
+  inventory-url: "${ZOHO_INVENTORY_URL:https://www.zohoapis.in/inventory/v1}"
+  client-id: "${ZOHO_CLIENT_ID:}"
+  client-secret: "${ZOHO_CLIENT_SECRET:}"
+  refresh-token: "${ZOHO_REFRESH_TOKEN:}"
+  organization-id: "${ZOHO_ORGANIZATION_ID:}"
 
 razorpay:
-  key-id: "rzp_test_Tyq6KGtL5bEph6"
-  key-secret: "ShZrfU1x7n35RGP1SHdFtJ9p"
-  webhook-secret: "whsec_daiva_beauty_2026"
+  key-id: "${RAZORPAY_KEY_ID:rzp_test_mock_daiva}"
+  key-secret: "${RAZORPAY_KEY_SECRET:mock_secret_daiva_beauty_2026}"
+  webhook-secret: "${RAZORPAY_WEBHOOK_SECRET:whsec_daiva_beauty_2026}"
   currency: "INR"
   company-name: "Aura Luxe Cosmetics"
 
 xpressbees:
-  base-url: "https://shipment.xpressbees.com"
-  email: ""
-  password: ""
-  origin-pincode: "560001"
-  warehouse-name: "Aura Luxe Cosmetics Hub"
-  warehouse-line1: "124, 4th Cross, Indiranagar"
-  warehouse-city: "Bengaluru"
-  warehouse-state: "Karnataka"
-  warehouse-phone: "+91 9876543210"
+  base-url: "${XPRESSBEES_BASE_URL:https://shipment.xpressbees.com}"
+  email: "${XPRESSBEES_EMAIL:}"
+  password: "${XPRESSBEES_PASSWORD:}"
+  origin-pincode: "${XPRESSBEES_ORIGIN_PINCODE:560001}"
+  warehouse-name: "${XPRESSBEES_WAREHOUSE_NAME:Aura Luxe Cosmetics Hub}"
+  warehouse-line1: "${XPRESSBEES_WAREHOUSE_LINE1:124, 4th Cross, Indiranagar}"
+  warehouse-city: "${XPRESSBEES_WAREHOUSE_CITY:Bengaluru}"
+  warehouse-state: "${XPRESSBEES_WAREHOUSE_STATE:Karnataka}"
+  warehouse-phone: "${XPRESSBEES_WAREHOUSE_PHONE:+91 9876543210}"
   tracking-url-template: "https://shipmentv2.xpressbees.com/orders/tracking/{awb}"
 
 telegram:
