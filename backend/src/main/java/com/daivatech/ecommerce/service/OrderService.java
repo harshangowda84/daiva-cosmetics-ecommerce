@@ -572,4 +572,31 @@ public class OrderService {
         item.setUpdatedAt(LocalDateTime.now());
         return returnExchangeRepository.save(item);
     }
+
+    /**
+     * Requirement: Customer Cancels Return/Exchange Request & Keeps Product
+     */
+    @Transactional
+    public com.daivatech.ecommerce.entity.OrderReturnExchange cancelReturnOrExchange(Long returnExchangeId) {
+        com.daivatech.ecommerce.entity.OrderReturnExchange item = returnExchangeRepository.findById(returnExchangeId)
+                .orElseThrow(() -> new IllegalArgumentException("Return/Exchange request not found: " + returnExchangeId));
+
+        if ("COMPLETED".equalsIgnoreCase(item.getStatus()) || "REFUNDED".equalsIgnoreCase(item.getRefundStatus())) {
+            throw new IllegalStateException("Cannot cancel return once refund or exchange has been completed.");
+        }
+
+        item.setStatus("RETURN_CANCELLED");
+        item.setCourierStatus("RETURN_CANCELLED");
+        item.setInspectionStatus("CANCELLED_BY_CUSTOMER");
+        item.setInspectionNotes("Return cancelled by customer. Customer decided to keep the product.");
+        item.setUpdatedAt(LocalDateTime.now());
+
+        // Restore order status back to DELIVERED
+        orderRepository.findById(item.getOrderId()).ifPresent(order -> {
+            order.setOrderStatus("DELIVERED");
+            orderRepository.save(order);
+        });
+
+        return returnExchangeRepository.save(item);
+    }
 }

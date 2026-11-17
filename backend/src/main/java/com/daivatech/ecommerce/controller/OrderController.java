@@ -86,4 +86,17 @@ public class OrderController {
     public ResponseEntity<?> getOrderReturns(@PathVariable Long orderId) {
         return ResponseEntity.ok(orderService.getReturnExchangesForOrder(orderId));
     }
+
+    /**
+     * Customer cancels return/exchange request and keeps item
+     */
+    @PostMapping("/returns/{returnId}/cancel")
+    public ResponseEntity<?> cancelReturn(@PathVariable Long returnId) {
+        try {
+            com.daivatech.ecommerce.entity.OrderReturnExchange cancelled = orderService.cancelReturnOrExchange(returnId);
+            return ResponseEntity.ok(cancelled);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
 }

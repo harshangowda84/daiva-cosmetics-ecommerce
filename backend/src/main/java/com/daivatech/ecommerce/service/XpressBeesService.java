@@ -497,8 +497,19 @@ public class XpressBeesService {
                 ));
                 nextActionEstimate = "Replacement item is in transit • Estimated delivery in 2 business days";
             }
-        } else if ("VERIFIED_FAILED".equalsIgnoreCase(item.getInspectionStatus()) || "RETURN_CANCELLED".equalsIgnoreCase(courierStatus) || "REJECTED".equalsIgnoreCase(item.getStatus())) {
-            stageIndex = 2;
+        } else if ("RETURN_CANCELLED".equalsIgnoreCase(courierStatus) || "RETURN_CANCELLED".equalsIgnoreCase(item.getStatus()) || "CANCELLED_BY_CUSTOMER".equalsIgnoreCase(item.getInspectionStatus())) {
+            stageIndex = 3;
+            currentStatus = "RETURN_CANCELLED";
+            milestones.add(Map.of(
+                    "status", "RETURN_CANCELLED",
+                    "title", (type.equals("EXCHANGE") ? "Exchange" : "Return") + " Cancelled by Customer",
+                    "time", (item.getUpdatedAt() != null ? item.getUpdatedAt() : LocalDateTime.now()).format(dtf),
+                    "location", "Customer Profile",
+                    "description", "You chose to keep the product. Reverse courier pickup has been cancelled."
+            ));
+            nextActionEstimate = "Return cancelled • You kept the product";
+        } else if ("VERIFIED_FAILED".equalsIgnoreCase(item.getInspectionStatus()) || "REJECTED".equalsIgnoreCase(item.getStatus())) {
+            stageIndex = 3;
             currentStatus = "REJECTED";
             milestones.add(Map.of(
                     "status", "REJECTED",
@@ -507,7 +518,7 @@ public class XpressBeesService {
                     "location", "Customer Doorstep",
                     "description", item.getInspectionNotes() != null ? item.getInspectionNotes() : "Verification criteria not met. Item returned to customer."
             ));
-            nextActionEstimate = "Return cancelled due to inspection failure";
+            nextActionEstimate = "Return rejected due to inspection failure";
         }
 
         Map<String, Object> result = new HashMap<>();

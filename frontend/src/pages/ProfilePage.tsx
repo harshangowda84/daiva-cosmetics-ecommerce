@@ -115,6 +115,28 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
     }
   };
 
+  const handleCancelReturnRequest = async (orderId: number, returnId: number) => {
+    if (!window.confirm('Do you want to cancel the return request and keep your product?')) return;
+    try {
+      setLoadingTrackingMap((prev) => ({ ...prev, [orderId]: true }));
+      await api.cancelReturnRequest(returnId);
+      
+      // Refresh user orders & tracking
+      if (user?.id) {
+        const updatedOrders = await api.getUserOrders(user.id);
+        setOrders(updatedOrders);
+      }
+      const refreshedTracking = await api.trackOrderShipment(orderId);
+      setTrackingMap((prev) => ({ ...prev, [orderId]: refreshedTracking }));
+      
+      alert('Return request cancelled. You have kept your product!');
+    } catch (err: any) {
+      alert('Failed to cancel return request: ' + (err.message || 'Error occurred'));
+    } finally {
+      setLoadingTrackingMap((prev) => ({ ...prev, [orderId]: false }));
+    }
+  };
+
   const toggleOrderCard = (orderId: number) => {
     if (expandedOrderId === orderId) {
       setExpandedOrderId(null);
@@ -157,14 +179,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
   };
 
   // Determine which stage (0 to 3) the order is in:
-  // 0: Confirmation, 1: Fulfillment, 2: Transit, 3: Delivery
+  // 0: Confirmation, 1: Fulfillment, 2: Transit, 3: Delivery or Cancelled
   const getStageIndex = (order: CustomerOrder, tracking?: ShipmentTracking | null): number => {
+    // If order entity is CANCELLED, it is ALWAYS moved to stage 3 (Final Order Cancelled)
+    if (order.orderStatus === 'CANCELLED') {
+      return 3;
+    }
     // If order entity is DELIVERED, it is ALWAYS stage 3 (Delivery / Delivered at Doorstep)
     if (order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED') {
       return 3;
     }
     const status = (tracking?.currentStatus || order.courierStatus || order.orderStatus || '').toUpperCase();
-    if (status.includes('DELIVERED')) return 3;
+    if (status.includes('DELIVERED') || status.includes('CANCEL')) return 3;
     if (
       status.includes('TRANSIT') ||
       status.includes('OUT_FOR_DELIVERY') ||
@@ -1140,6 +1166,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                     <span className="font-bold text-neutral-900 dark:text-neutral-100 text-xs sm:text-sm">
                                       {retTrack.nextActionEstimate}
                                     </span>
+                                    {retTrack.returnExchangeId && (retTrack.currentStatus === 'REQUESTED' || retTrack.currentStatus === 'PICKUP_SCHEDULED') && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCancelReturnRequest(order.id, retTrack.returnExchangeId!)}
+                                        className="mt-2 sm:mt-0 px-3 py-1 rounded-full border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#1E1611] text-neutral-700 dark:text-neutral-300 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-300 text-[11px] font-semibold transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                                      >
+                                        <XCircle className="w-3 h-3 text-neutral-500 hover:text-rose-600" />
+                                        <span>Cancel Return & Keep Product</span>
+                                      </button>
+                                    )}
                                   </div>
                                 ) : order.orderStatus === 'CANCELLED' ? (
                                   <div className="bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-900/60 rounded-xl px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-xs">
@@ -1391,19 +1427,19 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                         </div>
 
                                         <div className={`relative px-2.5 py-1 rounded-xl shadow-lg border flex items-center gap-1.5 ${
-                                          currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
+                                          order.orderStatus === 'CANCELLED'
+                                            ? 'bg-rose-700 text-white border-rose-600'
+                                            : currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
                                             ? 'bg-emerald-700 text-white border-emerald-600'
-                                            : (order.courierStatus === 'RTO_INITIATED' || order.courierStatus === 'RTO_IN_TRANSIT')
-                                            ? 'bg-amber-800 text-white border-amber-700'
                                             : 'bg-[#1E1611] text-white border-neutral-700'
                                         }`}>
-                                          <Truck className={`w-4 h-4 ${currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'text-white' : 'text-amber-400'}`} />
-                                          <span className={`text-[9px] font-mono font-bold tracking-tight ${currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'text-white' : 'text-amber-300'}`}>
-                                            {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'DELIVERED' : (order.courierStatus === 'RTO_INITIATED' || order.courierStatus === 'RTO_IN_TRANSIT') ? 'RTO TRANSIT' : 'IN MOTION'}
+                                          <Truck className={`w-4 h-4 ${order.orderStatus === 'CANCELLED' || currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'text-white' : 'text-amber-400'}`} />
+                                          <span className={`text-[9px] font-mono font-bold tracking-tight ${order.orderStatus === 'CANCELLED' || currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'text-white' : 'text-amber-300'}`}>
+                                            {order.orderStatus === 'CANCELLED' ? 'ORDER CANCELLED' : (currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED') ? 'DELIVERED' : 'IN MOTION'}
                                           </span>
                                         </div>
 
-                                        <div className={`w-1.5 h-1.5 mx-auto mt-0.5 rounded-full ${currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'bg-emerald-400' : 'bg-amber-500 animate-ping'}`} />
+                                        <div className={`w-1.5 h-1.5 mx-auto mt-0.5 rounded-full ${order.orderStatus === 'CANCELLED' ? 'bg-rose-400' : (currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED') ? 'bg-emerald-400' : 'bg-amber-500 animate-ping'}`} />
                                       </div>
                                     </div>
 
@@ -1470,27 +1506,45 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                         </span>
                                       </div>
 
-                                      {/* 4. Delivery */}
+                                      {/* 4. Delivery or Order Cancelled */}
                                       <div className="flex flex-col items-center group">
                                         <div
                                           className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-                                            currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
+                                            order.orderStatus === 'CANCELLED'
+                                              ? 'bg-rose-600 text-white border border-rose-600 shadow-rose-500/20'
+                                              : currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
                                               ? 'bg-emerald-600 text-white border border-emerald-600 shadow-emerald-500/20'
                                               : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
                                           }`}
                                         >
-                                          {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? (
+                                          {order.orderStatus === 'CANCELLED' ? (
+                                            <XCircle className="w-6 h-6 text-white" strokeWidth={2.5} />
+                                          ) : currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? (
                                             <Check className="w-6 h-6 text-white" strokeWidth={2.5} />
                                           ) : (
                                             <Home className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
                                           )}
                                         </div>
-                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Delivery</p>
-                                        <p className={`text-[11px] mt-0.5 ${currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-neutral-500 dark:text-neutral-400'}`}>
-                                          {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'Delivered' : 'Doorstep Dispatch'}
+                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">
+                                          {order.orderStatus === 'CANCELLED' ? 'Order Cancelled' : 'Delivery'}
+                                        </p>
+                                        <p className={`text-[11px] mt-0.5 ${
+                                          order.orderStatus === 'CANCELLED'
+                                            ? 'text-rose-600 dark:text-rose-400 font-semibold'
+                                            : currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
+                                            ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+                                            : 'text-neutral-500 dark:text-neutral-400'
+                                        }`}>
+                                          {order.orderStatus === 'CANCELLED'
+                                            ? 'Refund Processed'
+                                            : currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
+                                            ? 'Delivered'
+                                            : 'Doorstep Dispatch'}
                                         </p>
                                         <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono mt-0.5">
-                                          {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
+                                          {order.orderStatus === 'CANCELLED'
+                                            ? 'Cancelled'
+                                            : currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
                                             ? (order.deliveredAt ? new Date(order.deliveredAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Today')
                                             : (tracking?.expectedDelivery || 'Expected soon')}
                                         </span>
@@ -1757,18 +1811,31 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
 
                             {/* View Return/Exchange Live Tracking (If active) */}
                             {hasReturnExchange && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  toggleOrderCard(order.id);
-                                  toggleOrderSubDropdown(order, 'tracking');
-                                  setTrackingViewMode((prev) => ({ ...prev, [order.id]: 'return' }));
-                                }}
-                                className="px-3.5 py-1.5 rounded-full border border-rose-400 dark:border-rose-800 bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
-                              >
-                                <RotateCcw className="w-3.5 h-3.5" />
-                                <span>Track Return & Refund</span>
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    toggleOrderCard(order.id);
+                                    toggleOrderSubDropdown(order, 'tracking');
+                                    setTrackingViewMode((prev) => ({ ...prev, [order.id]: 'return' }));
+                                  }}
+                                  className="px-3.5 py-1.5 rounded-full border border-rose-400 dark:border-rose-800 bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <RotateCcw className="w-3.5 h-3.5" />
+                                  <span>Track Return & Refund</span>
+                                </button>
+
+                                {retTrack?.returnExchangeId && (retTrack.currentStatus === 'REQUESTED' || retTrack.currentStatus === 'PICKUP_SCHEDULED') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCancelReturnRequest(order.id, retTrack.returnExchangeId!)}
+                                    className="px-3.5 py-1.5 rounded-full border border-neutral-300 dark:border-[#382B21] bg-white dark:bg-[#1E1611] text-neutral-700 dark:text-[#EDE4DA] hover:bg-neutral-50 dark:hover:bg-[#251D18] font-semibold text-xs transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                                  >
+                                    <XCircle className="w-3.5 h-3.5 text-neutral-500" />
+                                    <span>Cancel Return & Keep Product</span>
+                                  </button>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>

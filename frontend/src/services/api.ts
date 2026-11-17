@@ -650,6 +650,18 @@ export const api = {
     return res.json();
   },
 
+  async cancelReturnRequest(returnId: number): Promise<import('../types').OrderReturnExchange> {
+    const res = await fetch(`${BASE_URL}/orders/returns/${returnId}/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to cancel return request');
+    }
+    return res.json();
+  },
+
   async trackReturnShipment(returnId: number): Promise<import('../types').ReturnExchangeTrackingInfo> {
     const res = await fetch(`${BASE_URL}/shipping/returns/${returnId}/track`);
     if (!res.ok) {
