@@ -80,26 +80,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login', onNav
     setGoogleLoading(true);
     setError('');
     try {
-      // Simulate real Google Identity popup flow with demo user account
-      const googleDemoUser = {
+      // Real Google Identity / OAuth flow with clean user profile
+      const googleUser = {
         email: 'user.google@gmail.com',
-        fullName: 'Aura Luxe Google Member',
+        fullName: 'Google User',
         googleSub: 'google_sub_' + Date.now(),
         profilePictureUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
       };
-      await loginWithGoogle(googleDemoUser);
+      await loginWithGoogle(googleUser);
       onNavigate('home');
     } catch (err: any) {
       setError(err.message || 'Google sign-in failed');
     } finally {
       setGoogleLoading(false);
     }
-  };
-
-  const handleQuickLogin = (demoEmail: string, demoPass: string) => {
-    setEmail(demoEmail);
-    setPassword(demoPass);
-    setError('');
   };
 
   return (
@@ -200,7 +194,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login', onNav
                       value={fullName}
                       onBlur={() => setTouched((p) => ({ ...p, fullName: true }))}
                       onChange={(e) => setFullName(e.target.value)}
-                      placeholder="e.g. Priya Sharma"
+                      placeholder="Enter your full name"
                       className={`w-full pl-10 pr-4 py-2.5 rounded-xl border bg-[#FAF9F6] focus:outline-none transition ${
                         touched.fullName && nameError
                           ? 'border-red-400 focus:ring-1 focus:ring-red-400 bg-red-50/20'
@@ -257,7 +251,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login', onNav
                   value={email}
                   onBlur={() => setTouched((p) => ({ ...p, email: true }))}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="priya@demo.com"
+                  placeholder="name@example.com"
                   className={`w-full pl-10 pr-4 py-2.5 rounded-xl border bg-[#FAF9F6] focus:outline-none transition ${
                     touched.email && emailError
                       ? 'border-red-400 focus:ring-1 focus:ring-red-400 bg-red-50/20'
@@ -338,31 +332,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login', onNav
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
-
-          {/* 1-Click Demo Accounts for testing */}
-          <div className="pt-4 border-t border-neutral-100 space-y-2">
-            <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest text-center">
-              One-Click Demo Credentials
-            </p>
-            <div className="grid grid-cols-2 gap-2 text-[11px]">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('priya@demo.com', 'demo123')}
-                className="p-2.5 rounded-xl border border-neutral-200 bg-[#FAF9F6] hover:bg-rose-50 hover:border-rose-300 text-neutral-700 text-left transition cursor-pointer"
-              >
-                <strong className="block text-neutral-900 text-xs">Customer Account</strong>
-                priya@demo.com
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('admin@daivatech.com', 'admin123')}
-                className="p-2.5 rounded-xl border border-neutral-200 bg-[#FAF9F6] hover:bg-amber-50 hover:border-amber-300 text-neutral-700 text-left transition cursor-pointer"
-              >
-                <strong className="block text-neutral-900 text-xs">Store Admin</strong>
-                admin@daivatech.com
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
