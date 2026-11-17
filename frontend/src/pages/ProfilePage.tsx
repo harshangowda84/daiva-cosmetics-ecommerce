@@ -28,15 +28,17 @@ import {
   Plus,
   Trash2,
   Edit3,
-  Briefcase
+  Briefcase,
+  RotateCcw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useCart } from '../context/CartContext';
-import { CustomerOrder, ShipmentTracking, ProductReview, OrderItem, UserAddress } from '../types';
+import { CustomerOrder, ShipmentTracking, ProductReview, OrderItem, UserAddress, Product } from '../types';
 import { api } from '../services/api';
 import { profanityService } from '../services/profanityService';
 import { getFullImageUrl, handleImageError } from '../utils/image';
+import { ReturnExchangeModal } from '../components/ReturnExchangeModal';
 
 interface ProfilePageProps {
   onNavigate: (page: string, param?: string) => void;
@@ -54,6 +56,35 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
   const [orderDropdownTab, setOrderDropdownTab] = useState<Record<number, 'tracking' | 'reviews' | null>>({});
   const [trackingMap, setTrackingMap] = useState<Record<number, ShipmentTracking>>({});
   const [loadingTrackingMap, setLoadingTrackingMap] = useState<Record<number, boolean>>({});
+
+  // Return / Exchange modal state
+  const [returnModalOrder, setReturnModalOrder] = useState<CustomerOrder | null>(null);
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(null);
+
+  useEffect(() => {
+    api.getProducts().then((prods) => setCatalogProducts(prods)).catch(() => {});
+  }, []);
+
+  const handleCancelOrder = async (order: CustomerOrder) => {
+    const isDispatched = order.orderStatus === 'SHIPPED' || !!order.awbNumber;
+    const confirmMsg = isDispatched
+      ? `This order has already been dispatched via XpressBees. If you cancel now, courier RTO will bring the shipment back and your refund will be processed immediately. Proceed with cancellation?`
+      : `Cancel Order #${order.orderNumber}? Instant refund will be issued and inventory restored.`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      setCancellingOrderId(order.id);
+      const updated = await api.cancelOrder(order.id, 'Customer requested cancellation via Profile');
+      setOrders((prev) => prev.map((o) => (o.id === order.id ? updated : o)));
+      alert(`Order #${order.orderNumber} successfully cancelled! ${updated.refundStatus === 'REFUNDED' ? 'Instant refund completed.' : ''}`);
+    } catch (err: any) {
+      alert('Cancellation failed: ' + err.message);
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
 
   const toggleOrderCard = (orderId: number) => {
     if (expandedOrderId === orderId) {
@@ -1229,6 +1260,42 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                             </span>
                           </div>
                         </div>
+
+                        {/* ORDER CUSTOMER ACTIONS ROW: CANCEL, RETURN, EXCHANGE */}
+                        <div className="p-3.5 rounded-xl bg-[#FAF9F6] dark:bg-[#1A130E] border border-neutral-200/70 dark:border-[#2C211A] flex flex-wrap justify-between items-center text-xs gap-3">
+                          <div className="flex items-center gap-2">
+                            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span className="text-[11px] text-neutral-600 dark:text-neutral-400">
+                              Aura Luxe Guarantee • Free Courier Pickup & Instant Refund
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* Cancellation Button (Pre-Dispatch or In-Transit) */}
+                            {order.orderStatus !== 'DELIVERED' && order.orderStatus !== 'CANCELLED' && order.orderStatus !== 'RETURNED' && (
+                              <button
+                                type="button"
+                                onClick={() => handleCancelOrder(order)}
+                                disabled={cancellingOrderId === order.id}
+                                className="px-3.5 py-1.5 rounded-full border border-red-300 dark:border-red-900/60 bg-red-50/50 dark:bg-red-950/30 text-red-700 dark:text-red-400 font-semibold text-xs hover:bg-red-100 transition shadow-2xs cursor-pointer"
+                              >
+                                {cancellingOrderId === order.id ? 'Processing...' : 'Cancel Order'}
+                              </button>
+                            )}
+
+                            {/* Return or Exchange (Delivered items) */}
+                            {order.orderStatus === 'DELIVERED' && (
+                              <button
+                                type="button"
+                                onClick={() => setReturnModalOrder(order)}
+                                className="px-3.5 py-1.5 rounded-full border border-rose-300 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 font-bold text-xs hover:bg-rose-100 transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>Return or Exchange</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1720,6 +1787,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* RETURN OR EXCHANGE MODAL (Requirement 6 & 7) */}
+      {returnModalOrder && (
+        <ReturnExchangeModal
+          order={returnModalOrder}
+          isOpen={true}
+          onClose={() => setReturnModalOrder(null)}
+          availableProducts={catalogProducts}
+          onSuccess={async () => {
+            if (user?.id) {
+              const freshOrders = await api.getUserOrders(user.id);
+              setOrders(freshOrders);
+            }
+          }}
+        />
       )}
     </div>
   );

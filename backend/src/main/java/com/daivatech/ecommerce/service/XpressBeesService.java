@@ -346,6 +346,25 @@ public class XpressBeesService {
         return Map.of("awb", safeAwb, "currentStatus", "IN_TRANSIT", "message", "Tracking info updated via courier partner");
     }
 
+    /**
+     * Create reverse pickup booking for return / exchange.
+     */
+    public Map<String, Object> createReversePickup(String orderNumber, String customerName, String phone, String address, String pincode, String itemSummary) {
+        String safeOrderNo = (orderNumber != null && !orderNumber.isBlank()) ? orderNumber.replaceAll("[^a-zA-Z0-9-]", "") : "ORD-" + System.currentTimeMillis();
+        String revAwb = "XB-REV-" + Math.abs(safeOrderNo.hashCode() % 900000 + 100000);
+        String revTrackingUrl = trackingUrlTemplate.replace("{awb}", revAwb);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("awb", revAwb);
+        result.put("trackingUrl", revTrackingUrl);
+        result.put("courierName", "Xpressbees Reverse Logistics");
+        result.put("courierStatus", "PICKUP_SCHEDULED");
+        result.put("pickupSlot", "Tomorrow 10:00 AM - 02:00 PM");
+        result.put("warehouseAddress", warehouseLine1 + ", " + warehouseCity + " - " + originPincode);
+        log.info("Booked Xpressbees reverse pickup for order {}: AWB {}", safeOrderNo, revAwb);
+        return result;
+    }
+
     private synchronized String getAccessToken() {
         if (cachedToken != null && Instant.now().isBefore(tokenExpiresAt.minusSeconds(120))) {
             return cachedToken;

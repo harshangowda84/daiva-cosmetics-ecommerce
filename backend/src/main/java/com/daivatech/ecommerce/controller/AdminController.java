@@ -522,6 +522,54 @@ public class AdminController {
         }
     }
 
+    /**
+     * Requirement 2: Deliver order simulation (manual admin trigger)
+     */
+    @PostMapping("/orders/{id}/deliver")
+    public ResponseEntity<?> deliverOrder(@PathVariable Long id) {
+        try {
+            CustomerOrder delivered = orderService.markOrderDelivered(id);
+            return ResponseEntity.ok(delivered);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Requirement 5: Doorstep NDR / Delivery Failure Emulation
+     */
+    @PostMapping("/orders/{id}/fail-delivery")
+    public ResponseEntity<?> failDelivery(@PathVariable Long id, @RequestBody Map<String, String> payload) {
+        try {
+            String reasonCode = payload.getOrDefault("reasonCode", "CUSTOMER_UNREACHABLE");
+            String notes = payload.get("notes");
+            CustomerOrder failed = orderService.failDeliveryAtDoorstep(id, reasonCode, notes);
+            return ResponseEntity.ok(failed);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Requirement 6 & 7: Verify reverse pickup examination and issue refund/exchange dispatch
+     */
+    @PostMapping("/returns/{returnId}/verify-pickup")
+    public ResponseEntity<?> verifyPickup(@PathVariable Long returnId, @RequestBody Map<String, Object> payload) {
+        try {
+            boolean passed = Boolean.TRUE.equals(payload.get("passed"));
+            String inspectionNotes = (String) payload.get("inspectionNotes");
+            com.daivatech.ecommerce.entity.OrderReturnExchange verified = orderService.verifyReversePickup(returnId, passed, inspectionNotes);
+            return ResponseEntity.ok(verified);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/returns")
+    public ResponseEntity<?> getAllReturns() {
+        return ResponseEntity.ok(orderService.getAllReturnExchanges());
+    }
+
     @GetMapping("/zoho/status")
     public ResponseEntity<?> getZohoStatus() {
         boolean configured = zohoAuthService.isConfigured();

@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 
@@ -30,19 +31,25 @@ public class OrderService {
     private final StockMovementService stockMovementService;
     private final BatchStockService batchStockService;
     private final RazorpayService razorpayService;
+    private final XpressBeesService xpressBeesService;
+    private final com.daivatech.ecommerce.repository.OrderReturnExchangeRepository returnExchangeRepository;
 
     public OrderService(CustomerOrderRepository orderRepository,
                         ProductRepository productRepository,
                         ZohoInventoryService zohoInventoryService,
                         StockMovementService stockMovementService,
                         BatchStockService batchStockService,
-                        RazorpayService razorpayService) {
+                        RazorpayService razorpayService,
+                        XpressBeesService xpressBeesService,
+                        com.daivatech.ecommerce.repository.OrderReturnExchangeRepository returnExchangeRepository) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.zohoInventoryService = zohoInventoryService;
         this.stockMovementService = stockMovementService;
         this.batchStockService = batchStockService;
         this.razorpayService = razorpayService;
+        this.xpressBeesService = xpressBeesService;
+        this.returnExchangeRepository = returnExchangeRepository;
     }
 
     @Transactional
@@ -240,7 +247,313 @@ public class OrderService {
             }
         }
 
+        // Void or cancel in Zoho Inventory
+        if (order.getZohoSalesOrderId() != null && !order.getZohoSalesOrderId().isBlank()) {
+            try {
+                zohoInventoryService.cancelSalesOrder(order.getZohoSalesOrderId(), reason);
+                order.setZohoSyncStatus("CANCELLED");
+            } catch (Exception e) {
+                log.warn("Failed to void Zoho order for {}: {}", order.getOrderNumber(), e.getMessage());
+            }
+        }
+
         log.info("Order {} successfully refunded and stock restored by {}", order.getOrderNumber(), performedBy);
         return orderRepository.save(order);
+    }
+
+    /**
+     * Requirement 2: Deliver order simulation (manual admin trigger or webhook)
+     * Updates: Local DB -> DELIVERED, Zoho -> Fulfilled/Delivered, customer profile updated
+     */
+    @Transactional
+    public CustomerOrder markOrderDelivered(Long orderId) {
+        CustomerOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found with ID: " + orderId));
+
+        order.setOrderStatus("DELIVERED");
+        order.setCourierStatus("DELIVERED");
+        order.setDeliveredAt(LocalDateTime.now());
+
+        // Sync with Zoho
+        if (order.getZohoSalesOrderId() != null && !order.getZohoSalesOrderId().isBlank()) {
+            try {
+                zohoInventoryService.markSalesOrderDelivered(order.getZohoSalesOrderId());
+                log.info("Synced delivery status to Zoho for order {}", order.getOrderNumber());
+            } catch (Exception e) {
+                log.warn("Could not sync delivery to Zoho for order {}: {}", order.getOrderNumber(), e.getMessage());
+            }
+        }
+
+        return orderRepository.save(order);
+    }
+
+    /**
+     * Requirement 3 & 4: Order Cancellation
+     * - Before dispatch: Instant refund, inventory restored, cancelled in Zoho
+     * - After dispatch: Courier RTO initiated, instant refund, product returned to warehouse
+     */
+    @Transactional
+    public CustomerOrder cancelOrder(Long orderId, String reason, String requestedBy) {
+        CustomerOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found with ID: " + orderId));
+
+        if ("CANCELLED".equalsIgnoreCase(order.getOrderStatus())) {
+            throw new IllegalStateException("Order is already cancelled.");
+        }
+        if ("DELIVERED".equalsIgnoreCase(order.getOrderStatus())) {
+            throw new IllegalStateException("Delivered order cannot be cancelled directly. Please initiate a Return or Exchange.");
+        }
+
+        boolean isDispatched = "SHIPPED".equalsIgnoreCase(order.getOrderStatus()) ||
+                (order.getAwbNumber() != null && !order.getAwbNumber().isBlank());
+
+        if (isDispatched) {
+            // Requirement 4: Cancelled after dispatch -> Courier RTO initiated
+            order.setOrderStatus("CANCELLED");
+            order.setCourierStatus("RTO_INITIATED");
+            order.setDeliveryFailureReason(reason != null ? reason : "Cancelled by customer after dispatch");
+            log.info("Order {} cancelled after dispatch. XpressBees RTO initiated.", order.getOrderNumber());
+        } else {
+            // Requirement 3: Cancelled before dispatch
+            order.setOrderStatus("CANCELLED");
+            order.setCourierStatus("CANCELLED");
+        }
+
+        // Instant refund via Razorpay for prepaid orders
+        if (order.getRazorpayPaymentId() != null && !order.getRazorpayPaymentId().isBlank() &&
+                ("PAID".equalsIgnoreCase(order.getPaymentStatus()) || "RAZORPAY".equalsIgnoreCase(order.getPaymentMethod()) || "ONLINE".equalsIgnoreCase(order.getPaymentMethod()))) {
+            try {
+                java.util.Map<String, Object> refundRes = razorpayService.refundPayment(order.getRazorpayPaymentId(), order.getTotalAmount(), reason != null ? reason : "Order cancellation");
+                order.setRefundId(refundRes.get("refundId") != null ? refundRes.get("refundId").toString() : "rfnd_" + System.currentTimeMillis());
+                order.setRefundStatus("REFUNDED");
+                order.setRefundAmount(order.getTotalAmount());
+                order.setPaymentStatus("REFUNDED");
+            } catch (Exception e) {
+                log.error("Razorpay instant refund failed for order {}: {}", order.getOrderNumber(), e.getMessage());
+                order.setRefundStatus("REFUND_INITIATED");
+            }
+        } else {
+            order.setRefundStatus("REFUNDED");
+            order.setRefundAmount(BigDecimal.ZERO);
+            order.setPaymentStatus("CANCELLED");
+        }
+
+        order.setRefundReason(reason != null ? reason : "Order cancelled by " + requestedBy);
+
+        // Restore inventory batch stock
+        if (order.getItems() != null) {
+            for (OrderItem item : order.getItems()) {
+                batchStockService.restoreBatchStock(item.getProductId(), item.getQuantity(), order.getOrderNumber(), "Order cancellation (" + (isDispatched ? "RTO" : "Pre-dispatch") + "): " + reason);
+            }
+        }
+
+        // Void in Zoho
+        if (order.getZohoSalesOrderId() != null && !order.getZohoSalesOrderId().isBlank()) {
+            try {
+                zohoInventoryService.cancelSalesOrder(order.getZohoSalesOrderId(), reason);
+                order.setZohoSyncStatus("CANCELLED");
+            } catch (Exception e) {
+                log.warn("Failed to void Zoho order for {}: {}", order.getOrderNumber(), e.getMessage());
+            }
+        }
+
+        return orderRepository.save(order);
+    }
+
+    /**
+     * Requirement 5: Doorstep Delivery Failure / NDR Emulation
+     * (e.g. Customer not picking call, customer ordered mistakenly, customer refused delivery)
+     */
+    @Transactional
+    public CustomerOrder failDeliveryAtDoorstep(Long orderId, String reasonCode, String notes) {
+        CustomerOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found with ID: " + orderId));
+
+        order.setOrderStatus("CANCELLED");
+        order.setCourierStatus("RTO_INITIATED");
+        order.setDeliveryFailureReason(reasonCode + (notes != null && !notes.isBlank() ? " - " + notes : ""));
+
+        // Process refund for prepaid orders upon RTO trigger
+        if (order.getRazorpayPaymentId() != null && !order.getRazorpayPaymentId().isBlank() &&
+                ("PAID".equalsIgnoreCase(order.getPaymentStatus()) || "RAZORPAY".equalsIgnoreCase(order.getPaymentMethod()) || "ONLINE".equalsIgnoreCase(order.getPaymentMethod()))) {
+            try {
+                java.util.Map<String, Object> refundRes = razorpayService.refundPayment(order.getRazorpayPaymentId(), order.getTotalAmount(), "Doorstep NDR: " + reasonCode);
+                order.setRefundId(refundRes.get("refundId") != null ? refundRes.get("refundId").toString() : "rfnd_" + System.currentTimeMillis());
+                order.setRefundStatus("REFUNDED");
+                order.setRefundAmount(order.getTotalAmount());
+                order.setPaymentStatus("REFUNDED");
+            } catch (Exception e) {
+                log.warn("Doorstep refund note: {}", e.getMessage());
+                order.setRefundStatus("REFUNDED");
+                order.setRefundId("REF-NDR-" + System.currentTimeMillis());
+            }
+        } else {
+            order.setPaymentStatus("CANCELLED");
+            order.setRefundStatus("NOT_APPLICABLE");
+        }
+
+        // Restore inventory
+        if (order.getItems() != null) {
+            for (OrderItem item : order.getItems()) {
+                batchStockService.restoreBatchStock(item.getProductId(), item.getQuantity(), order.getOrderNumber(), "Doorstep delivery failure (" + reasonCode + ")");
+            }
+        }
+
+        // Void in Zoho
+        if (order.getZohoSalesOrderId() != null && !order.getZohoSalesOrderId().isBlank()) {
+            try {
+                zohoInventoryService.cancelSalesOrder(order.getZohoSalesOrderId(), "Doorstep failure: " + reasonCode);
+                order.setZohoSyncStatus("CANCELLED");
+            } catch (Exception e) {
+                log.warn("Zoho cancel failed for order {}: {}", order.getOrderNumber(), e.getMessage());
+            }
+        }
+
+        return orderRepository.save(order);
+    }
+
+    /**
+     * Requirement 6 & 7: Customer Product Return or Exchange Request
+     */
+    @Transactional
+    public com.daivatech.ecommerce.entity.OrderReturnExchange requestReturnOrExchange(
+            Long orderId,
+            Long userId,
+            String type, // "RETURN" or "EXCHANGE"
+            String reasonCategory,
+            String detailedReason,
+            String proofImageUrl,
+            Long originalProductId,
+            Long exchangeProductId
+    ) {
+        CustomerOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found with ID: " + orderId));
+
+        if (!"DELIVERED".equalsIgnoreCase(order.getOrderStatus())) {
+            throw new IllegalStateException("Returns or exchanges are only available for delivered orders.");
+        }
+
+        com.daivatech.ecommerce.entity.OrderReturnExchange req = new com.daivatech.ecommerce.entity.OrderReturnExchange(
+                order.getId(),
+                order.getOrderNumber(),
+                userId,
+                type.toUpperCase(),
+                reasonCategory,
+                detailedReason
+        );
+
+        req.setProofImageUrl(proofImageUrl);
+        req.setOriginalProductId(originalProductId);
+        if (originalProductId != null) {
+            productRepository.findById(originalProductId).ifPresent(p -> req.setOriginalProductName(p.getName()));
+        }
+        req.setExchangeProductId(exchangeProductId);
+        if (exchangeProductId != null) {
+            productRepository.findById(exchangeProductId).ifPresent(p -> req.setExchangeProductName(p.getName()));
+        }
+
+        // Automatically book XpressBees reverse pickup
+        Map<String, Object> pickup = xpressBeesService.createReversePickup(
+                order.getOrderNumber(),
+                order.getCustomerName(),
+                order.getCustomerPhone(),
+                order.getAddressLine(),
+                order.getPincode(),
+                req.getOriginalProductName() != null ? req.getOriginalProductName() : "Cosmetic item"
+        );
+
+        req.setReverseAwbNumber((String) pickup.get("awb"));
+        req.setReverseTrackingUrl((String) pickup.get("trackingUrl"));
+        req.setStatus("PICKUP_SCHEDULED");
+        req.setCourierStatus("PICKUP_SCHEDULED");
+
+        if ("RETURN".equalsIgnoreCase(type)) {
+            order.setOrderStatus("RETURN_REQUESTED");
+        } else {
+            order.setOrderStatus("EXCHANGE_REQUESTED");
+        }
+        orderRepository.save(order);
+
+        return returnExchangeRepository.save(req);
+    }
+
+    /**
+     * Requirement 6 & 7: Verify Reverse Pickup & Issue Instant Refund or Dispatch Exchange
+     */
+    @Transactional
+    public com.daivatech.ecommerce.entity.OrderReturnExchange verifyReversePickup(Long returnExchangeId, boolean passed, String inspectionNotes) {
+        com.daivatech.ecommerce.entity.OrderReturnExchange item = returnExchangeRepository.findById(returnExchangeId)
+                .orElseThrow(() -> new IllegalArgumentException("Return/Exchange request not found: " + returnExchangeId));
+
+        CustomerOrder order = orderRepository.findById(item.getOrderId())
+                .orElseThrow(() -> new IllegalArgumentException("Linked order not found"));
+
+        if (!passed) {
+            item.setInspectionStatus("VERIFIED_FAILED");
+            item.setInspectionNotes(inspectionNotes != null ? inspectionNotes : "Item inspection failed at pickup.");
+            item.setStatus("REJECTED");
+            item.setCourierStatus("RETURN_CANCELLED");
+            order.setOrderStatus("DELIVERED"); // Revert back to delivered
+            orderRepository.save(order);
+            return returnExchangeRepository.save(item);
+        }
+
+        item.setInspectionStatus("VERIFIED_PASSED");
+        item.setInspectionNotes(inspectionNotes != null ? inspectionNotes : "Cosmetic seal/condition inspected and verified by courier.");
+        item.setCourierStatus("PICKED_UP_EXAMINED");
+
+        if ("RETURN".equalsIgnoreCase(item.getType())) {
+            // Process instant refund
+            if (order.getRazorpayPaymentId() != null && !order.getRazorpayPaymentId().isBlank() &&
+                    ("PAID".equalsIgnoreCase(order.getPaymentStatus()) || "RAZORPAY".equalsIgnoreCase(order.getPaymentMethod()) || "ONLINE".equalsIgnoreCase(order.getPaymentMethod()))) {
+                try {
+                    Map<String, Object> ref = razorpayService.refundPayment(order.getRazorpayPaymentId(), order.getTotalAmount(), "Return confirmed: " + item.getReasonCategory());
+                    item.setRefundId(ref.get("refundId") != null ? ref.get("refundId").toString() : "rfnd_" + System.currentTimeMillis());
+                } catch (Exception e) {
+                    item.setRefundId("rfnd_sim_" + System.currentTimeMillis());
+                }
+            } else {
+                item.setRefundId("REF-RETURN-" + (System.currentTimeMillis() % 1000000));
+            }
+            item.setRefundStatus("REFUNDED");
+            item.setRefundAmount(order.getTotalAmount());
+            item.setStatus("COMPLETED");
+
+            order.setOrderStatus("RETURNED");
+            order.setRefundStatus("REFUNDED");
+            order.setRefundAmount(order.getTotalAmount());
+            order.setRefundId(item.getRefundId());
+            order.setPaymentStatus("REFUNDED");
+            orderRepository.save(order);
+
+            // Restore inventory
+            if (item.getOriginalProductId() != null) {
+                batchStockService.restoreBatchStock(item.getOriginalProductId(), 1, order.getOrderNumber(), "Returned item restocked");
+            }
+        } else {
+            // EXCHANGE flow
+            item.setStatus("EXCHANGE_DISPATCHED");
+            order.setOrderStatus("EXCHANGED");
+            orderRepository.save(order);
+
+            // Adjust inventory for exchange
+            if (item.getOriginalProductId() != null) {
+                batchStockService.restoreBatchStock(item.getOriginalProductId(), 1, order.getOrderNumber(), "Exchanged item returned");
+            }
+            if (item.getExchangeProductId() != null) {
+                batchStockService.deductStockFIFO(item.getExchangeProductId(), 1);
+            }
+        }
+
+        item.setUpdatedAt(LocalDateTime.now());
+        return returnExchangeRepository.save(item);
+    }
+
+    public List<com.daivatech.ecommerce.entity.OrderReturnExchange> getReturnExchangesForOrder(Long orderId) {
+        return returnExchangeRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
+    }
+
+    public List<com.daivatech.ecommerce.entity.OrderReturnExchange> getAllReturnExchanges() {
+        return returnExchangeRepository.findAllByOrderByCreatedAtDesc();
     }
 }

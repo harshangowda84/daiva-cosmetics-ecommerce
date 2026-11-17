@@ -264,4 +264,50 @@ public class ZohoInventoryService {
                 .retrieve()
                 .body(JsonNode.class);
     }
+
+    /**
+     * 5. Mark Sales Order as Confirmed/Fulfilled/Delivered in Zoho
+     */
+    public boolean markSalesOrderDelivered(String salesOrderId) {
+        if (salesOrderId == null || salesOrderId.isBlank()) {
+            return false;
+        }
+        try {
+            String token = authService.getAccessToken();
+            String url = properties.getInventoryUrl() + "/salesorders/" + salesOrderId + "/status/delivered?organization_id=" + properties.getOrganizationId();
+            restClient.post()
+                    .uri(url)
+                    .header(HttpHeaders.AUTHORIZATION, "Zoho-oauthtoken " + token)
+                    .retrieve()
+                    .toBodilessEntity();
+            log.info("Successfully marked Zoho Sales Order {} as delivered", salesOrderId);
+            return true;
+        } catch (Exception e) {
+            log.warn("Zoho mark delivered failed for salesOrderId {}: {}", salesOrderId, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 6. Cancel or Void Sales Order in Zoho
+     */
+    public boolean cancelSalesOrder(String salesOrderId, String reason) {
+        if (salesOrderId == null || salesOrderId.isBlank()) {
+            return false;
+        }
+        try {
+            String token = authService.getAccessToken();
+            String url = properties.getInventoryUrl() + "/salesorders/" + salesOrderId + "/status/void?organization_id=" + properties.getOrganizationId();
+            restClient.post()
+                    .uri(url)
+                    .header(HttpHeaders.AUTHORIZATION, "Zoho-oauthtoken " + token)
+                    .retrieve()
+                    .toBodilessEntity();
+            log.info("Successfully voided/cancelled Zoho Sales Order {}: {}", salesOrderId, reason);
+            return true;
+        } catch (Exception e) {
+            log.warn("Zoho void sales order failed for {}: {}", salesOrderId, e.getMessage());
+            return false;
+        }
+    }
 }

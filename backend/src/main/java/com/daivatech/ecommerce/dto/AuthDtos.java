@@ -32,6 +32,25 @@ public class AuthDtos {
         public void setPassword(String password) { this.password = password; }
     }
 
+    public static class GoogleAuthRequest {
+        private String email;
+        private String fullName;
+        private String googleSub;
+        private String profilePictureUrl;
+
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
+
+        public String getFullName() { return fullName; }
+        public void setFullName(String fullName) { this.fullName = fullName; }
+
+        public String getGoogleSub() { return googleSub; }
+        public void setGoogleSub(String googleSub) { this.googleSub = googleSub; }
+
+        public String getProfilePictureUrl() { return profilePictureUrl; }
+        public void setProfilePictureUrl(String profilePictureUrl) { this.profilePictureUrl = profilePictureUrl; }
+    }
+
     public static class AuthResponse {
         private Long id;
         private String fullName;

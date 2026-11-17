@@ -63,7 +63,10 @@ public class CustomerOrder {
     private String awbNumber;
     private String shippingLabelUrl;
     private String trackingUrl;
-    private String courierStatus = "PENDING"; // "PENDING", "MANIFESTED", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED"
+    private String courierStatus = "PENDING"; // "PENDING", "MANIFESTED", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "UNDELIVERED_ATTEMPT", "RTO_INITIATED", "RTO_IN_TRANSIT", "RTO_DELIVERED"
+    private String deliveryFailureReason; // e.g. "CUSTOMER_UNREACHABLE", "DOOR_STEP_REJECTED", "WRONG_ADDRESS", "ORDER_CANCELLED_IN_TRANSIT"
+    private LocalDateTime deliveredAt;
+    private LocalDateTime dispatchedAt;
 
     // Zoho Integration fields
     private String zohoCustomerId;
@@ -165,6 +168,15 @@ public class CustomerOrder {
 
     public String getCourierStatus() { return courierStatus; }
     public void setCourierStatus(String courierStatus) { this.courierStatus = courierStatus; }
+
+    public String getDeliveryFailureReason() { return deliveryFailureReason; }
+    public void setDeliveryFailureReason(String deliveryFailureReason) { this.deliveryFailureReason = deliveryFailureReason; }
+
+    public LocalDateTime getDeliveredAt() { return deliveredAt; }
+    public void setDeliveredAt(LocalDateTime deliveredAt) { this.deliveredAt = deliveredAt; }
+
+    public LocalDateTime getDispatchedAt() { return dispatchedAt; }
+    public void setDispatchedAt(LocalDateTime dispatchedAt) { this.dispatchedAt = dispatchedAt; }
 
     public String getOrderStatus() { return orderStatus; }
     public void setOrderStatus(String orderStatus) { this.orderStatus = orderStatus; }

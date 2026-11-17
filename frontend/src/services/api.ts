@@ -549,6 +549,108 @@ export const api = {
     return res.json();
   },
 
+  // Requirement 2: Deliver order simulation (syncs DB, Zoho, Razorpay)
+  async deliverOrder(orderId: number): Promise<CustomerOrder> {
+    const res = await fetch(`${BASE_URL}/admin/orders/${orderId}/deliver`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to mark order delivered');
+    }
+    return res.json();
+  },
+
+  // Requirement 3 & 4: Cancel order (Pre-dispatch or In-transit)
+  async cancelOrder(orderId: number, reason?: string): Promise<CustomerOrder> {
+    const res = await fetch(`${BASE_URL}/orders/${orderId}/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: reason || 'Cancelled by customer' }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to cancel order');
+    }
+    return res.json();
+  },
+
+  // Requirement 5: Doorstep NDR / Delivery Failure Emulation
+  async failDoorstepDelivery(orderId: number, reasonCode: string, notes?: string): Promise<CustomerOrder> {
+    const res = await fetch(`${BASE_URL}/admin/orders/${orderId}/fail-delivery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reasonCode, notes: notes || '' }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to simulate doorstep delivery failure');
+    }
+    return res.json();
+  },
+
+  // Requirement 6 & 7: Return and Exchange APIs
+  async requestReturnOrExchange(orderId: number, data: {
+    userId?: number;
+    type: 'RETURN' | 'EXCHANGE';
+    reasonCategory: string;
+    detailedReason: string;
+    proofImageUrl?: string;
+    originalProductId?: number;
+    exchangeProductId?: number;
+  }): Promise<import('../types').OrderReturnExchange> {
+    const res = await fetch(`${BASE_URL}/orders/${orderId}/return-exchange`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to submit return/exchange request');
+    }
+    return res.json();
+  },
+
+  async getOrderReturnExchanges(orderId: number): Promise<import('../types').OrderReturnExchange[]> {
+    const res = await fetch(`${BASE_URL}/orders/${orderId}/return-exchange`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getAllReturnExchanges(): Promise<import('../types').OrderReturnExchange[]> {
+    const res = await fetch(`${BASE_URL}/admin/returns`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async verifyPickupReturn(returnId: number, passed: boolean, inspectionNotes?: string): Promise<import('../types').OrderReturnExchange> {
+    const res = await fetch(`${BASE_URL}/admin/returns/${returnId}/verify-pickup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passed, inspectionNotes: inspectionNotes || '' }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to verify reverse pickup');
+    }
+    return res.json();
+  },
+
+  // Google OAuth Auth API
+  async googleAuth(data: { email: string; fullName?: string; googleSub?: string; profilePictureUrl?: string }): Promise<import('../types').User> {
+    const res = await fetch(`${BASE_URL}/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Google authentication failed');
+    }
+    return res.json();
+  },
+
   // Xpressbees Logistics APIs
   async checkPincodeServiceability(pincode: string): Promise<import('../types').ShippingServiceability> {
     const res = await fetch(`${BASE_URL}/shipping/serviceability?pincode=${encodeURIComponent(pincode)}`);

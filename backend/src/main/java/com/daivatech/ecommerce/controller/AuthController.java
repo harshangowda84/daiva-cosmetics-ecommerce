@@ -39,6 +39,16 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/google")
+    public ResponseEntity<?> googleAuth(@RequestBody AuthDtos.GoogleAuthRequest request) {
+        try {
+            AuthDtos.AuthResponse response = authService.googleAuth(request);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @GetMapping("/profile/{id}")
     public ResponseEntity<?> getProfile(@PathVariable Long id) {
         try {

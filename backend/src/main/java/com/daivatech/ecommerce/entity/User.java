@@ -31,6 +31,10 @@ public class User {
 
     private String role = "CUSTOMER"; // "CUSTOMER" or "ADMIN"
 
+    private String authProvider = "LOCAL"; // "LOCAL" or "GOOGLE"
+    private String googleSub;
+    private String profilePictureUrl;
+
     private String zohoContactId;
 
     private LocalDateTime createdAt = LocalDateTime.now();
@@ -80,6 +84,15 @@ public class User {
 
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
+
+    public String getAuthProvider() { return authProvider; }
+    public void setAuthProvider(String authProvider) { this.authProvider = authProvider; }
+
+    public String getGoogleSub() { return googleSub; }
+    public void setGoogleSub(String googleSub) { this.googleSub = googleSub; }
+
+    public String getProfilePictureUrl() { return profilePictureUrl; }
+    public void setProfilePictureUrl(String profilePictureUrl) { this.profilePictureUrl = profilePictureUrl; }
 
     public String getZohoContactId() { return zohoContactId; }
     public void setZohoContactId(String zohoContactId) { this.zohoContactId = zohoContactId; }

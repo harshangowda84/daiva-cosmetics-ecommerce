@@ -47,8 +47,9 @@ import {
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Product, CustomerOrder, ZohoStatus, UploadedImageInfo, StockMovement, ProductBatch, ShipmentTracking, ProductReview } from '../types';
+import { Product, CustomerOrder, ZohoStatus, UploadedImageInfo, StockMovement, ProductBatch, ShipmentTracking, ProductReview, OrderReturnExchange } from '../types';
 import { getFullImageUrl, handleImageError } from '../utils/image';
+import { XpressBeesSimulatorModal } from '../components/XpressBeesSimulatorModal';
 
 interface AdminPageProps {
   onNavigate: (page: string, param?: string) => void;
@@ -70,7 +71,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const [loginError, setLoginError] = useState('');
 
   // Dashboard states
-  const [activeTab, setActiveTab] = useState<'inventory' | 'orders' | 'zoho' | 'ledger' | 'reviews'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'orders' | 'zoho' | 'ledger' | 'reviews' | 'returns'>('inventory');
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [zohoStatus, setZohoStatus] = useState<ZohoStatus | null>(null);
@@ -511,6 +512,41 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const [selectedTrackingOrder, setSelectedTrackingOrder] = useState<CustomerOrder | null>(null);
   const [trackingData, setTrackingData] = useState<ShipmentTracking | null>(null);
   const [loadingTracking, setLoadingTracking] = useState(false);
+  const [selectedSimulateOrder, setSelectedSimulateOrder] = useState<CustomerOrder | null>(null);
+
+  // Return & Exchange Requests State
+  const [allReturns, setAllReturns] = useState<OrderReturnExchange[]>([]);
+  const [loadingReturns, setLoadingReturns] = useState(false);
+  const [verifyingReturnId, setVerifyingReturnId] = useState<number | null>(null);
+
+  const fetchReturns = async () => {
+    try {
+      setLoadingReturns(true);
+      const data = await api.getAllReturnExchanges();
+      setAllReturns(data);
+    } catch (e) {
+      console.error('Failed to fetch returns', e);
+    } finally {
+      setLoadingReturns(false);
+    }
+  };
+
+  const handleVerifyPickup = async (returnId: number, passed: boolean) => {
+    try {
+      showToast(passed ? 'Verifying reverse pickup & issuing instant refund...' : 'Rejecting return request...', 'loading');
+      setVerifyingReturnId(returnId);
+      const updated = await api.verifyPickupReturn(returnId, passed, passed ? 'Courier confirmed cosmetic batch and seal intact.' : 'Customer item opened / damaged during pickup examination.');
+      setAllReturns((prev) => prev.map((r) => (r.id === returnId ? updated : r)));
+      // Refresh orders
+      const freshOrders = await api.getAdminOrders();
+      setOrders(freshOrders);
+      showToast(passed ? 'Reverse pickup passed! Instant refund issued & inventory synced.' : 'Pickup rejected.', passed ? 'success' : 'info');
+    } catch (err: any) {
+      showToast('Verification failed: ' + err.message, 'error');
+    } finally {
+      setVerifyingReturnId(null);
+    }
+  };
 
   const handleDispatchOrder = async (orderId: number) => {
     try {
@@ -1128,6 +1164,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
             <span>Product Reviews ({adminReviews.length})</span>
           </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('returns');
+              fetchReturns();
+            }}
+            className={`px-5 py-3 rounded-t-xl transition flex items-center gap-2 ${
+              activeTab === 'returns'
+                ? 'bg-white dark:bg-[#1A1410] border-t border-l border-r border-neutral-200 dark:border-[#2C211A] text-rose-800 dark:text-rose-400 shadow-sm'
+                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-white'
+            }`}
+          >
+            <RotateCcw className="w-4 h-4 text-rose-600" />
+            <span>Returns & Exchanges ({allReturns.length})</span>
+          </button>
         </div>
 
         {/* TAB 1: PRODUCT CATALOG & INVENTORY TABLE */}
@@ -1518,6 +1569,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                         {/* Actions */}
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                            {/* XpressBees Interactive Simulation Modal Trigger */}
+                            <button
+                              onClick={() => setSelectedSimulateOrder(o)}
+                              className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 text-white text-[11px] font-bold hover:opacity-90 transition flex items-center gap-1 shadow-xs cursor-pointer"
+                              title="Open XpressBees Simulator to emulate dispatch, deliver, doorstep NDR, or RTO"
+                            >
+                              <Truck className="w-3 h-3" />
+                              <span>Simulate XpressBees</span>
+                            </button>
+
                             {/* Xpressbees Dispatch or Print Label */}
                             {!o.awbNumber ? (
                               <button
@@ -2161,6 +2222,130 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   );
                 })()
               )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6: RETURNS & EXCHANGES MANAGEMENT */}
+        {activeTab === 'returns' && (
+          <div className="bg-white dark:bg-[#16100C] rounded-3xl border border-neutral-200 dark:border-[#2C211A] overflow-hidden shadow-sm space-y-0">
+            <div className="p-5 border-b border-neutral-100 dark:border-[#2C211A] flex justify-between items-center bg-[#FAF9F6] dark:bg-[#1A130E]">
+              <div>
+                <h3 className="font-serif text-lg font-semibold text-neutral-900 dark:text-[#EDE4DA]">
+                  Customer Returns & Exchanges (Amazon / Flipkart Flow)
+                </h3>
+                <p className="text-xs text-neutral-500">
+                  Track reverse pickups with XpressBees, inspect products at doorstep, issue instant refunds, or dispatch exchanges.
+                </p>
+              </div>
+              <button
+                onClick={fetchReturns}
+                className="px-3 py-1.5 rounded-xl border border-neutral-300 dark:border-neutral-700 text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-[#251D18] flex items-center gap-1.5 transition"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingReturns ? 'animate-spin' : ''}`} />
+                <span>Refresh Requests</span>
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-neutral-600 dark:text-neutral-400">
+                <thead className="bg-[#FAF9F6] dark:bg-[#1A1410] text-[10px] text-neutral-500 uppercase tracking-wider border-b border-neutral-200 dark:border-[#2C211A]">
+                  <tr>
+                    <th className="py-3 px-4">Req # / Type</th>
+                    <th className="py-3 px-4">Order #</th>
+                    <th className="py-3 px-4">Item & Reason</th>
+                    <th className="py-3 px-4">Reverse Logistics (XpressBees)</th>
+                    <th className="py-3 px-4">Inspection & Refund</th>
+                    <th className="py-3 px-4 text-right">Doorstep Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 dark:divide-[#2C211A]">
+                  {allReturns.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-neutral-400 font-serif">
+                        No return or exchange requests logged yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    allReturns.map((r) => (
+                      <tr key={r.id} className="hover:bg-neutral-50/50 dark:hover:bg-[#1F1712] transition">
+                        <td className="py-3.5 px-4">
+                          <span className="font-mono font-bold text-neutral-900 dark:text-white block">#{r.id}</span>
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider mt-1 ${
+                            r.type === 'RETURN' ? 'bg-rose-100 text-rose-800' : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {r.type}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono font-semibold text-neutral-900 dark:text-white">
+                          #{r.orderNumber}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <p className="font-semibold text-neutral-900 dark:text-white">{r.originalProductName || 'Cosmetic item'}</p>
+                          <span className="text-[11px] text-amber-700 dark:text-amber-400 font-medium block">
+                            Reason: {r.reasonCategory}
+                          </span>
+                          {r.detailedReason && (
+                            <p className="text-[10px] text-neutral-500 italic max-w-xs truncate">{r.detailedReason}</p>
+                          )}
+                          {r.type === 'EXCHANGE' && r.exchangeProductName && (
+                            <p className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold mt-0.5">
+                              → Exchange for: {r.exchangeProductName}
+                            </p>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className="font-mono text-neutral-900 dark:text-neutral-200 block font-semibold">
+                            {r.reverseAwbNumber || 'Pickup Pending'}
+                          </span>
+                          <span className="text-[10px] text-neutral-500 block">
+                            Status: <strong className="text-amber-600">{r.courierStatus}</strong>
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            r.inspectionStatus === 'VERIFIED_PASSED' ? 'bg-emerald-100 text-emerald-800' :
+                            r.inspectionStatus === 'VERIFIED_FAILED' ? 'bg-red-100 text-red-800' : 'bg-neutral-100 text-neutral-700'
+                          }`}>
+                            {r.inspectionStatus}
+                          </span>
+                          {r.refundStatus === 'REFUNDED' && (
+                            <span className="text-[10px] text-emerald-600 block font-semibold mt-0.5">
+                              Refunded: ₹{r.refundAmount?.toLocaleString()}
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          {r.status === 'PICKUP_SCHEDULED' ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => handleVerifyPickup(r.id, true)}
+                                disabled={verifyingReturnId === r.id}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-700 transition shadow-xs cursor-pointer"
+                                title="Courier confirms product seal & initiates instant refund"
+                              >
+                                {verifyingReturnId === r.id ? 'Processing...' : 'Pass & Refund'}
+                              </button>
+                              <button
+                                onClick={() => handleVerifyPickup(r.id, false)}
+                                disabled={verifyingReturnId === r.id}
+                                className="px-2.5 py-1 rounded-lg bg-red-600 text-white text-[11px] font-bold hover:bg-red-700 transition shadow-xs cursor-pointer"
+                                title="Reject pickup if item opened or damaged by customer"
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] font-semibold text-neutral-400">
+                              {r.status}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
@@ -3756,6 +3941,19 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             />
           </div>
         </div>
+      )}
+
+      {/* MODAL 6: XPRESSBEES LOGISTICS SIMULATOR (Requirement 2 & 5) */}
+      {selectedSimulateOrder && (
+        <XpressBeesSimulatorModal
+          order={selectedSimulateOrder}
+          isOpen={true}
+          onClose={() => setSelectedSimulateOrder(null)}
+          onOrderUpdated={(updated) => {
+            setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+            setSelectedSimulateOrder(updated);
+          }}
+        />
       )}
     </div>
   );

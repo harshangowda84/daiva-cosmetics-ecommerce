@@ -106,6 +106,9 @@ export interface CustomerOrder {
   shippingLabelUrl?: string;
   trackingUrl?: string;
   courierStatus?: string;
+  deliveryFailureReason?: string;
+  deliveredAt?: string;
+  dispatchedAt?: string;
   zohoCustomerId?: string;
   zohoSalesOrderId?: string;
   zohoSalesOrderNumber?: string;
@@ -113,6 +116,32 @@ export interface CustomerOrder {
   zohoErrorMessage?: string;
   createdAt: string;
   items: OrderItem[];
+}
+
+export interface OrderReturnExchange {
+  id: number;
+  orderId: number;
+  orderNumber: string;
+  userId?: number;
+  type: 'RETURN' | 'EXCHANGE';
+  reasonCategory: string;
+  detailedReason: string;
+  proofImageUrl?: string;
+  originalProductId?: number;
+  originalProductName?: string;
+  exchangeProductId?: number;
+  exchangeProductName?: string;
+  status: string; // "REQUESTED", "PICKUP_SCHEDULED", "OUT_FOR_PICKUP", "PICKED_UP_EXAMINED", "COMPLETED", "REJECTED", "EXCHANGE_DISPATCHED"
+  reverseAwbNumber?: string;
+  reverseTrackingUrl?: string;
+  courierStatus?: string;
+  inspectionStatus?: string;
+  inspectionNotes?: string;
+  refundAmount?: number;
+  refundId?: string;
+  refundStatus?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ZohoStatus {
