@@ -591,6 +591,29 @@ public class AdminController {
         return ResponseEntity.ok(orderService.getAllReturnExchanges());
     }
 
+    /**
+     * Purge all test order data across Local DB, customer history, and Zoho Inventory
+     */
+    @DeleteMapping("/orders/clear-all")
+    public ResponseEntity<?> clearAllOrdersDelete() {
+        try {
+            Map<String, Object> result = orderService.clearAllOrders();
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/orders/clear-all")
+    public ResponseEntity<?> clearAllOrdersPost() {
+        try {
+            Map<String, Object> result = orderService.clearAllOrders();
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @GetMapping("/zoho/status")
     public ResponseEntity<?> getZohoStatus() {
         boolean configured = zohoAuthService.isConfigured();

@@ -287,6 +287,17 @@ export const api = {
     return res.json();
   },
 
+  async clearAllOrders(): Promise<{ success: boolean; clearedOrdersCount: number; zohoCleanedCount: number; message: string }> {
+    const res = await fetch(`${BASE_URL}/admin/orders/clear-all`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to clear all orders');
+    }
+    return res.json();
+  },
+
   async retryZohoSync(orderId: number): Promise<CustomerOrder> {
     const res = await fetch(`${BASE_URL}/admin/orders/${orderId}/retry-zoho`, {
       method: 'POST',

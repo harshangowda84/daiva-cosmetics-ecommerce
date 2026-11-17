@@ -310,4 +310,29 @@ public class ZohoInventoryService {
             return false;
         }
     }
+
+    /**
+     * 7. Delete Sales Order from Zoho Inventory
+     */
+    public boolean deleteSalesOrder(String salesOrderId) {
+        if (salesOrderId == null || salesOrderId.isBlank()) {
+            return false;
+        }
+        try {
+            // First attempt to void if needed
+            cancelSalesOrder(salesOrderId, "Data cleanup wipe");
+            String token = authService.getAccessToken();
+            String url = properties.getInventoryUrl() + "/salesorders/" + salesOrderId + "?organization_id=" + properties.getOrganizationId();
+            restClient.delete()
+                    .uri(url)
+                    .header(HttpHeaders.AUTHORIZATION, "Zoho-oauthtoken " + token)
+                    .retrieve()
+                    .toBodilessEntity();
+            log.info("Successfully deleted Zoho Sales Order {}", salesOrderId);
+            return true;
+        } catch (Exception e) {
+            log.warn("Zoho delete sales order failed for {}: {}", salesOrderId, e.getMessage());
+            return false;
+        }
+    }
 }

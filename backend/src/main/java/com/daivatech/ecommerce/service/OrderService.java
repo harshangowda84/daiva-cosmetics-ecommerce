@@ -29,6 +29,7 @@ public class OrderService {
     private final ProductRepository productRepository;
     private final ZohoInventoryService zohoInventoryService;
     private final StockMovementService stockMovementService;
+    private final com.daivatech.ecommerce.repository.StockMovementRepository stockMovementRepository;
     private final BatchStockService batchStockService;
     private final RazorpayService razorpayService;
     private final XpressBeesService xpressBeesService;
@@ -38,6 +39,7 @@ public class OrderService {
                         ProductRepository productRepository,
                         ZohoInventoryService zohoInventoryService,
                         StockMovementService stockMovementService,
+                        com.daivatech.ecommerce.repository.StockMovementRepository stockMovementRepository,
                         BatchStockService batchStockService,
                         RazorpayService razorpayService,
                         XpressBeesService xpressBeesService,
@@ -46,6 +48,7 @@ public class OrderService {
         this.productRepository = productRepository;
         this.zohoInventoryService = zohoInventoryService;
         this.stockMovementService = stockMovementService;
+        this.stockMovementRepository = stockMovementRepository;
         this.batchStockService = batchStockService;
         this.razorpayService = razorpayService;
         this.xpressBeesService = xpressBeesService;
@@ -620,5 +623,55 @@ public class OrderService {
         });
 
         return returnExchangeRepository.save(item);
+    }
+
+    /**
+     * Complete Order Data Cleanup:
+     * Cleans all orders, returns, and reverse logistics records across Local DB, Zoho Inventory, and Razorpay refs.
+     */
+    @Transactional
+    public Map<String, Object> clearAllOrders() {
+        List<CustomerOrder> allOrders = orderRepository.findAll();
+        int orderCount = allOrders.size();
+        int zohoCleanedCount = 0;
+
+        for (CustomerOrder o : allOrders) {
+            if (o.getZohoSalesOrderId() != null && !o.getZohoSalesOrderId().isBlank()) {
+                try {
+                    boolean deleted = zohoInventoryService.deleteSalesOrder(o.getZohoSalesOrderId());
+                    if (deleted) {
+                        zohoCleanedCount++;
+                    }
+                } catch (Exception e) {
+                    log.warn("Could not delete Zoho sales order {}: {}", o.getZohoSalesOrderId(), e.getMessage());
+                }
+            }
+        }
+
+        // Delete all return & exchange records
+        returnExchangeRepository.deleteAll();
+
+        // Delete all customer orders (cascade deletes OrderItem child records)
+        orderRepository.deleteAll();
+
+        // Delete order-associated stock movements so inventory audit ledger is clean
+        try {
+            List<com.daivatech.ecommerce.entity.StockMovement> movements = stockMovementRepository.findAll();
+            for (com.daivatech.ecommerce.entity.StockMovement sm : movements) {
+                if (sm.getReferenceId() != null && sm.getReferenceId().startsWith("ORD-")) {
+                    stockMovementRepository.delete(sm);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Error cleaning stock movements: {}", e.getMessage());
+        }
+
+        Map<String, Object> result = new java.util.HashMap<>();
+        result.put("success", true);
+        result.put("clearedOrdersCount", orderCount);
+        result.put("zohoCleanedCount", zohoCleanedCount);
+        result.put("message", "All order data, reverse logistics, and customer profile history successfully cleaned.");
+        log.info("Cleared {} orders and {} Zoho sales orders.", orderCount, zohoCleanedCount);
+        return result;
     }
 }

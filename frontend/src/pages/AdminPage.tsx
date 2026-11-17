@@ -548,6 +548,26 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     }
   };
 
+  const [clearingOrders, setClearingOrders] = useState(false);
+
+  const handleClearAllOrders = async () => {
+    if (!window.confirm("⚠️ PERMANENT CLEANUP WARNING:\n\nAre you sure you want to delete ALL customer orders, returns, reverse tracking, and customer order history across Local Database, customer profiles, and Zoho Inventory?\n\nThis cannot be undone.")) {
+      return;
+    }
+    setClearingOrders(true);
+    showToast('Clearing all order and return records...', 'loading');
+    try {
+      const res = await api.clearAllOrders();
+      showToast(`Cleared ${res.clearedOrdersCount} orders successfully!`, 'success');
+      await loadData();
+      await fetchReturns();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to clear orders', 'error');
+    } finally {
+      setClearingOrders(false);
+    }
+  };
+
   const handleSimulateReturnOutForPickup = async (returnId: number) => {
     try {
       showToast('Simulating courier out for reverse pickup...', 'loading');
@@ -1444,13 +1464,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                 </h3>
                 <p className="text-xs text-neutral-400 dark:text-neutral-500">All consumer purchases and their automated Zoho ERP Sales Order numbers.</p>
               </div>
-              <button
-                onClick={loadData}
-                className="px-3 py-1.5 bg-neutral-100 dark:bg-[#251B15] hover:bg-neutral-200 dark:hover:bg-[#33241C] text-neutral-700 dark:text-neutral-300 text-xs font-semibold rounded-xl transition flex items-center gap-1.5"
-              >
-                <RefreshCw className="w-3 h-3" />
-                <span>Refresh</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleClearAllOrders}
+                  disabled={clearingOrders || orders.length === 0}
+                  className="px-3 py-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-700 dark:text-red-300 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 border border-red-200 dark:border-red-800 disabled:opacity-40 cursor-pointer"
+                  title="Purge all test orders, returns, and customer history"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{clearingOrders ? 'Cleaning...' : 'Clear All Orders'}</span>
+                </button>
+                <button
+                  onClick={loadData}
+                  className="px-3 py-1.5 bg-neutral-100 dark:bg-[#251B15] hover:bg-neutral-200 dark:hover:bg-[#33241C] text-neutral-700 dark:text-neutral-300 text-xs font-semibold rounded-xl transition flex items-center gap-1.5"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Refresh</span>
+                </button>
+              </div>
             </div>
 
             {orders.length === 0 ? (
