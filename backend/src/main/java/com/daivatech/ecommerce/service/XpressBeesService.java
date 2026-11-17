@@ -427,10 +427,10 @@ public class XpressBeesService {
         LocalDateTime baseTime = (item != null && item.getCreatedAt() != null) ? item.getCreatedAt() : LocalDateTime.now().minusHours(4);
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a");
 
-        // Milestone 1: Return/Exchange Request & Pickup Booking
+        // Milestone 1: Return Initiated
         milestones.add(Map.of(
                 "status", "REQUESTED",
-                "title", (type.equals("EXCHANGE") ? "Exchange" : "Return") + " Requested & Approved",
+                "title", (type.equals("EXCHANGE") ? "Exchange" : "Return") + " Initiated",
                 "time", baseTime.format(dtf),
                 "location", (order != null && order.getCity() != null) ? order.getCity() : "Customer Location",
                 "description", "Reverse AWB #" + safeAwb + " generated. 7-Day Easy Return Guarantee applied."
@@ -439,43 +439,60 @@ public class XpressBeesService {
         // Milestone 2: Courier Agent Assigned for Pickup
         milestones.add(Map.of(
                 "status", "PICKUP_SCHEDULED",
-                "title", "Xpressbees Reverse Courier Assigned",
+                "title", "Return Examine Scheduled",
                 "time", baseTime.plusHours(2).format(dtf),
                 "location", (order != null && order.getCity() != null) ? order.getCity() + " Logistics Hub" : "Regional Hub",
-                "description", "Pickup agent assigned: Rajesh K. (Contact via SMS/OTP). Doorstep item verification scheduled."
+                "description", "Doorstep examination assigned to Xpressbees courier agent. Keep container and batch code ready."
         ));
 
-        int stageIndex = 1; // 0: Requested, 1: Pickup Scheduled, 2: Out For Pickup / Doorstep QC, 3: Picked Up & Refunded / Dispatched
-        String currentStatus = "PICKUP_SCHEDULED";
-        String nextActionEstimate = "Pickup scheduled for Tomorrow between 10:00 AM - 02:00 PM";
+        int stageIndex = 0; // 0: Return Initiated, 1: Return Examine, 2: Return Pick Success, 3: Refund Issued
+        String currentStatus = "REQUESTED";
+        String nextActionEstimate = "Return initiated • Agent assigned for doorstep examination";
 
-        if ("OUT_FOR_PICKUP".equalsIgnoreCase(courierStatus)) {
-            stageIndex = 2;
+        if ("PICKUP_SCHEDULED".equalsIgnoreCase(courierStatus) || "REQUESTED".equalsIgnoreCase(courierStatus)) {
+            stageIndex = 0;
+            currentStatus = "REQUESTED";
+            nextActionEstimate = "Return initiated • Pickup scheduled for Tomorrow 10:00 AM - 02:00 PM";
+        }
+
+        if ("OUT_FOR_PICKUP".equalsIgnoreCase(courierStatus) || "EXAMINING".equalsIgnoreCase(courierStatus)) {
+            stageIndex = 1;
             currentStatus = "OUT_FOR_PICKUP";
             milestones.add(Map.of(
                     "status", "OUT_FOR_PICKUP",
-                    "title", "Xpressbees Agent Out For Doorstep Pickup",
-                    "time", LocalDateTime.now().minusMinutes(30).format(dtf),
+                    "title", "Xpressbees Agent Arrived for Return Examine",
+                    "time", LocalDateTime.now().minusMinutes(15).format(dtf),
                     "location", (order != null && order.getCity() != null) ? order.getCity() : "Your Area",
-                    "description", "Courier partner is arriving at your address. Keep original packaging and cosmetic item ready."
+                    "description", "Courier partner is examining product seal and packaging at your doorstep."
             ));
-            nextActionEstimate = "Agent arriving today • Doorstep verification in progress";
+            nextActionEstimate = "Agent at doorstep • Return examine in progress";
+        } else if ("PICKED_UP".equalsIgnoreCase(courierStatus) || "PICKED_UP_SUCCESS".equalsIgnoreCase(courierStatus)) {
+            stageIndex = 2;
+            currentStatus = "PICKED_UP_SUCCESS";
+            milestones.add(Map.of(
+                    "status", "PICKED_UP_SUCCESS",
+                    "title", "Return Pick Success",
+                    "time", LocalDateTime.now().minusMinutes(5).format(dtf),
+                    "location", "Customer Doorstep",
+                    "description", "Doorstep examination passed. Product collected successfully by courier partner."
+            ));
+            nextActionEstimate = "Item picked up successfully • Refund is being credited";
         } else if ("PICKED_UP_EXAMINED".equalsIgnoreCase(courierStatus) || "COMPLETED".equalsIgnoreCase(item.getStatus()) || "EXCHANGE_DISPATCHED".equalsIgnoreCase(item.getStatus()) || "REFUNDED".equalsIgnoreCase(item.getRefundStatus())) {
             stageIndex = 3;
             currentStatus = "COMPLETED";
 
-            // Milestone 3: Doorstep examination passed & item picked up
+            // Milestone 3: Return Pick Success
             LocalDateTime examTime = (item.getUpdatedAt() != null) ? item.getUpdatedAt() : LocalDateTime.now();
             milestones.add(Map.of(
-                    "status", "PICKED_UP_EXAMINED",
-                    "title", "Doorstep Quality Check Passed & Item Collected",
-                    "time", examTime.format(dtf),
+                    "status", "PICKED_UP_SUCCESS",
+                    "title", "Return Pick Success",
+                    "time", examTime.minusMinutes(2).format(dtf),
                     "location", "Customer Doorstep",
-                    "description", item.getInspectionNotes() != null ? item.getInspectionNotes() : "Seal & batch code verified intact by Xpressbees courier."
+                    "description", item.getInspectionNotes() != null ? item.getInspectionNotes() : "Seal & batch code verified intact. Item collected successfully."
             ));
 
             if ("RETURN".equalsIgnoreCase(type)) {
-                // Milestone 4 for RETURN: Instant Refund
+                // Milestone 4 for RETURN: Refund Issued
                 String refId = item.getRefundId() != null ? item.getRefundId() : "rfnd_" + System.currentTimeMillis();
                 boolean isBank = "BANK_TRANSFER".equalsIgnoreCase(item.getRefundMode());
                 String refundLocation = isBank ? (item.getBankName() != null ? item.getBankName() : "Bank Account") : "Razorpay Payment Gateway";

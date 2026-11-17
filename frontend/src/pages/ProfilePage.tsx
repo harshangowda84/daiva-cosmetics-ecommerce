@@ -1284,7 +1284,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                         }`}>
                                           <Truck className="w-4 h-4 text-amber-300" />
                                           <span className="text-[9px] font-mono font-bold tracking-tight text-white">
-                                            {retTrack.stageIndex === 3 ? 'VERIFIED & COMPLETE' : 'REVERSE PICKUP'}
+                                            {retTrack.stageIndex === 0
+                                              ? 'RETURN INITIATED'
+                                              : retTrack.stageIndex === 1
+                                              ? 'RETURN EXAMINE'
+                                              : retTrack.stageIndex === 2
+                                              ? 'RETURN PICK SUCCESS'
+                                              : (retTrack.type === 'EXCHANGE' ? 'EXCHANGE DISPATCHED' : 'REFUND ISSUED')}
                                           </span>
                                         </div>
                                         <div className={`w-1.5 h-1.5 mx-auto mt-0.5 rounded-full ${retTrack.stageIndex === 3 ? 'bg-emerald-400' : 'bg-rose-500 animate-ping'}`} />
@@ -1293,7 +1299,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
 
                                     {/* 4 REVERSE STAGES CARDS */}
                                     <div className="grid grid-cols-4 mt-8 gap-2 text-center relative z-10">
-                                      {/* 1. Request Approved */}
+                                      {/* 1. Return Initiated */}
                                       <div className="flex flex-col items-center group">
                                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
                                           retTrack.stageIndex >= 0
@@ -1302,42 +1308,44 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                         }`}>
                                           <RotateCcw className="w-5 h-5 text-rose-600 dark:text-rose-400" />
                                         </div>
-                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Return Confirmed</p>
+                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Return Initiated</p>
                                         <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">Pickup Booked</p>
                                         <span className="text-[10px] text-neutral-400 font-mono mt-0.5">AWB Issued</span>
                                       </div>
 
-                                      {/* 2. Pickup Scheduled */}
+                                      {/* 2. Return Examine */}
                                       <div className="flex flex-col items-center group">
                                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
                                           retTrack.stageIndex >= 1
                                             ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
                                             : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400'
                                         }`}>
-                                          <Clock className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                                          <ShieldCheck className="w-5 h-5 text-rose-600 dark:text-rose-400" />
                                         </div>
-                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Scheduled</p>
-                                        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">Agent Assigned</p>
-                                        <span className="text-[10px] text-neutral-400 font-mono mt-0.5">Tomorrow</span>
+                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Return Examine</p>
+                                        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                          {retTrack.stageIndex >= 1 ? 'Doorstep Inspection' : 'Agent Assigned'}
+                                        </p>
+                                        <span className="text-[10px] text-neutral-400 font-mono mt-0.5">Seal Check</span>
                                       </div>
 
-                                      {/* 3. Doorstep Verification */}
+                                      {/* 3. Return Pick Success */}
                                       <div className="flex flex-col items-center group">
                                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
                                           retTrack.stageIndex >= 2
                                             ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
                                             : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400'
                                         }`}>
-                                          <ShieldCheck className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                                          <Check className="w-5 h-5 text-rose-600 dark:text-rose-400" strokeWidth={2.5} />
                                         </div>
-                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Doorstep QC</p>
+                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Return Pick Success</p>
                                         <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
-                                          {retTrack.stageIndex >= 3 ? 'Seal Verified' : 'Inspection'}
+                                          {retTrack.stageIndex >= 2 ? 'Item Collected' : 'Pending Pickup'}
                                         </p>
-                                        <span className="text-[10px] text-neutral-400 font-mono mt-0.5">Item Handover</span>
+                                        <span className="text-[10px] text-neutral-400 font-mono mt-0.5">Verified</span>
                                       </div>
 
-                                      {/* 4. Instant Refund or Exchange Dispatched */}
+                                      {/* 4. Refund Issued / Exchange Dispatched */}
                                       <div className="flex flex-col items-center group">
                                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
                                           retTrack.stageIndex === 3
@@ -1363,7 +1371,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                             : (retTrack.type === 'EXCHANGE' ? 'Doorstep Handover' : 'Refund Processing')}
                                         </p>
                                         <span className="text-[10px] text-neutral-400 font-mono mt-0.5">
-                                          {retTrack.stageIndex === 3 ? 'Complete' : 'Instant'}
+                                          {retTrack.stageIndex === 3 ? 'Complete' : 'Final Step'}
                                         </span>
                                       </div>
                                     </div>
@@ -1789,16 +1797,44 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                           </div>
 
                           <div className="flex items-center gap-2 flex-wrap">
-                            {/* Customer Cancel Order Button */}
-                            {order.orderStatus !== 'DELIVERED' && order.orderStatus !== 'CANCELLED' && order.orderStatus !== 'RETURNED' && (
+                            {/* Customer Cancel Order / Cancel Return Button */}
+                            {hasReturnExchange ? (
+                              /* When Return or Exchange is active, show Cancel Return button */
                               <button
                                 type="button"
-                                onClick={() => handleOpenCancelModal(order)}
+                                onClick={async () => {
+                                  if (retTrack?.returnExchangeId) {
+                                    handleCancelReturnRequest(order.id, retTrack.returnExchangeId);
+                                  } else {
+                                    try {
+                                      const rets = await api.getOrderReturnExchanges(order.id);
+                                      const active = rets.find((r) => r.status === 'REQUESTED' || r.status === 'PICKUP_SCHEDULED');
+                                      if (active) {
+                                        handleCancelReturnRequest(order.id, active.id);
+                                      } else {
+                                        alert('No active return request to cancel.');
+                                      }
+                                    } catch (e: any) {
+                                      alert(e.message || 'Failed to cancel return');
+                                    }
+                                  }
+                                }}
                                 className="px-3.5 py-1.5 rounded-full border border-red-300 dark:border-red-900/60 bg-red-50/50 dark:bg-red-950/30 text-red-700 dark:text-red-400 text-xs font-semibold hover:bg-red-100 transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
                               >
                                 <XCircle className="w-3.5 h-3.5" />
-                                <span>Cancel Order</span>
+                                <span>Cancel Return</span>
                               </button>
+                            ) : (
+                              order.orderStatus !== 'DELIVERED' && order.orderStatus !== 'CANCELLED' && order.orderStatus !== 'RETURNED' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenCancelModal(order)}
+                                  className="px-3.5 py-1.5 rounded-full border border-red-300 dark:border-red-900/60 bg-red-50/50 dark:bg-red-950/30 text-red-700 dark:text-red-400 text-xs font-semibold hover:bg-red-100 transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <XCircle className="w-3.5 h-3.5" />
+                                  <span>Cancel Order</span>
+                                </button>
+                              )
                             )}
 
                             {/* Return or Exchange (Delivered items) */}
@@ -1829,16 +1865,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                   <span>Track Return & Refund</span>
                                 </button>
 
-                                {retTrack?.returnExchangeId && (retTrack.currentStatus === 'REQUESTED' || retTrack.currentStatus === 'PICKUP_SCHEDULED') && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleCancelReturnRequest(order.id, retTrack.returnExchangeId!)}
-                                    className="px-3.5 py-1.5 rounded-full border border-neutral-300 dark:border-[#382B21] bg-white dark:bg-[#1E1611] text-neutral-700 dark:text-[#EDE4DA] hover:bg-neutral-50 dark:hover:bg-[#251D18] font-semibold text-xs transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
-                                  >
-                                    <XCircle className="w-3.5 h-3.5 text-neutral-500" />
-                                    <span>Cancel Return & Keep Product</span>
-                                  </button>
-                                )}
+                                
                               </>
                             )}
                           </div>
