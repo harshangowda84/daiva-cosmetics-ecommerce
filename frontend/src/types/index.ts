@@ -45,6 +45,9 @@ export interface User {
   state?: string;
   pincode?: string;
   country?: string;
+  authProvider?: string;
+  profilePictureUrl?: string;
+  googleSub?: string;
 }
 
 export interface UserAddress {
