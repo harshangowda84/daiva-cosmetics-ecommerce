@@ -153,7 +153,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
     const nextTab = currentTab === tab ? null : tab;
     setOrderDropdownTab((prev) => ({ ...prev, [order.id]: nextTab }));
 
-    if (nextTab === 'tracking' && !trackingMap[order.id]) {
+    if (nextTab === 'tracking') {
       setLoadingTrackingMap((prev) => ({ ...prev, [order.id]: true }));
       try {
         const data = await api.trackOrderShipment(order.id);
