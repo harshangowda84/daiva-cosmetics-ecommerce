@@ -9,8 +9,8 @@ interface FloatingCartPillProps {
 export const FloatingCartPill: React.FC<FloatingCartPillProps> = ({ onNavigate }) => {
   const { totalItemsCount, subtotal, isCartDrawerOpen, setIsCartDrawerOpen } = useCart();
 
-  const [isVisible, setIsVisible] = useState(false);
-  const [position, setPosition] = useState<'center' | 'right'>('center');
+  const [isVisible, setIsVisible] = useState(totalItemsCount > 0);
+  const [isTemporarilyExpanded, setIsTemporarilyExpanded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [badgeBump, setBadgeBump] = useState(false);
 
@@ -19,43 +19,45 @@ export const FloatingCartPill: React.FC<FloatingCartPillProps> = ({ onNavigate }
   const timerRef = useRef<any>(null);
 
   // Clear timer helper
-  const clearSlideTimer = () => {
+  const clearTimer = () => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
   };
 
-  // Start 3-second timer to glide to right side
-  const startSlideTimer = () => {
-    clearSlideTimer();
+  // Start 3-second timer to collapse back into round icon
+  const startCollapseTimer = (ms = 3000) => {
+    clearTimer();
     timerRef.current = setTimeout(() => {
-      setPosition('right');
-    }, 3000);
+      setIsTemporarilyExpanded(false);
+    }, ms);
   };
 
   // Listen for cart additions
   useEffect(() => {
-    // Avoid showing on first mount if cart already had items from previous session
     if (isFirstRender.current) {
       isFirstRender.current = false;
       prevCountRef.current = totalItemsCount;
+      if (totalItemsCount > 0) {
+        setIsVisible(true);
+      }
       return;
     }
 
     if (totalItemsCount > prevCountRef.current) {
-      // Product was added to cart or quantity increased!
+      // Product was added to cart or quantity increased: expand in right side for 3 secs
       setIsVisible(true);
-      setPosition('center');
+      setIsTemporarilyExpanded(true);
       setBadgeBump(true);
       setTimeout(() => setBadgeBump(false), 300);
 
-      // Start 3-second timer to glide to right
-      startSlideTimer();
+      startCollapseTimer(3000);
     } else if (totalItemsCount === 0) {
       // Cart emptied completely
       setIsVisible(false);
-      clearSlideTimer();
+      setIsTemporarilyExpanded(false);
+      clearTimer();
     }
 
     prevCountRef.current = totalItemsCount;
@@ -63,21 +65,18 @@ export const FloatingCartPill: React.FC<FloatingCartPillProps> = ({ onNavigate }
 
   // Clean up timer on unmount
   useEffect(() => {
-    return () => clearSlideTimer();
+    return () => clearTimer();
   }, []);
 
-  // When hovering in center, pause timer so it doesn't fly away while the user is clicking
   const handleMouseEnter = () => {
     setIsHovered(true);
-    if (position === 'center') {
-      clearSlideTimer();
-    }
+    clearTimer(); // pause collapse while hovering
   };
 
   const handleMouseLeave = () => {
     setIsHovered(false);
-    if (position === 'center' && isVisible) {
-      startSlideTimer();
+    if (isTemporarilyExpanded) {
+      startCollapseTimer(1500); // collapse shortly after mouse leave
     }
   };
 
@@ -85,17 +84,17 @@ export const FloatingCartPill: React.FC<FloatingCartPillProps> = ({ onNavigate }
     e.stopPropagation();
     setIsCartDrawerOpen(true);
     if (onNavigate) {
-      // Keep cart drawer open
+      // keep cart drawer open
     }
   };
 
-  // Do not render if not yet triggered, or cart empty, or cart drawer is currently open
+  // Do not render if not visible, cart is empty, or drawer is already open
   if (!isVisible || totalItemsCount === 0 || isCartDrawerOpen) {
     return null;
   }
 
-  const isRight = position === 'right';
-  const isCollapsed = isRight && !isHovered;
+  const isExpanded = isHovered || isTemporarilyExpanded;
+  const isCollapsed = !isExpanded;
 
   return (
     <div
@@ -103,13 +102,11 @@ export const FloatingCartPill: React.FC<FloatingCartPillProps> = ({ onNavigate }
       onMouseLeave={handleMouseLeave}
       onClick={handleOpenCart}
       style={{
-        left: isRight ? 'calc(100% - 24px)' : '50%',
-        transform: isRight ? 'translateX(-100%)' : 'translateX(-50%)',
-        width: isCollapsed ? '56px' : '335px',
+        width: isExpanded ? '335px' : '56px',
         transition:
-          'left 650ms cubic-bezier(0.25, 1, 0.5, 1), transform 650ms cubic-bezier(0.25, 1, 0.5, 1), width 400ms cubic-bezier(0.25, 1, 0.5, 1), box-shadow 300ms ease, opacity 250ms ease',
+          'width 400ms cubic-bezier(0.25, 1, 0.5, 1), box-shadow 300ms ease, opacity 250ms ease',
       }}
-      className={`fixed bottom-6 z-40 h-14 bg-[#231F20] text-white rounded-full shadow-[0_12px_36px_rgba(0,0,0,0.38)] border border-neutral-700/50 select-none overflow-hidden cursor-pointer flex items-center ${
+      className={`fixed bottom-6 right-6 z-40 h-14 bg-[#231F20] text-white rounded-full shadow-[0_12px_36px_rgba(0,0,0,0.38)] border border-neutral-700/50 select-none overflow-hidden cursor-pointer flex items-center ${
         isCollapsed ? 'justify-center p-0' : 'px-3 justify-between'
       }`}
       title={isCollapsed ? `View Bag (${totalItemsCount} items)` : undefined}
@@ -132,10 +129,10 @@ export const FloatingCartPill: React.FC<FloatingCartPillProps> = ({ onNavigate }
         </div>
       </div>
 
-      {/* Expanded Pill View (in Center OR on Right Hover) */}
+      {/* Expanded Pill View (Smoothly expands to the left while anchored on right) */}
       <div
         className={`flex items-center justify-between w-full gap-2.5 transition-all duration-300 ${
-          !isCollapsed ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          isExpanded ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
       >
         {/* Left: Red Circle Badge + Item Count & Subtotal */}
