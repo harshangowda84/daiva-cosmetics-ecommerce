@@ -15,7 +15,7 @@ export const ShareProductModal: React.FC<ShareProductModalProps> = ({ product, i
   if (!isOpen || !product) return null;
 
   // Construct sharing URL and text
-  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://daiva-cosmetics-ecommerce.vercel.app';
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://daiva-cosmetics-ecommerce-xi.vercel.app';
   const shareUrl = `${currentOrigin}/#pdp/${product.slug}`;
   const shareText = `Discover ${product.name} by ${product.brand} - luxury cosmetics at ₹${product.price.toLocaleString()} on AURA LUXE:`;
 
