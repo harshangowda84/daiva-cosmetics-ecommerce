@@ -283,9 +283,23 @@ public class XpressBeesService {
     }
 
     /**
+     * Track shipment by CustomerOrder entity context (incorporating live orderStatus & delivery events).
+     */
+    public Map<String, Object> trackShipment(com.daivatech.ecommerce.entity.CustomerOrder order) {
+        if (order == null) {
+            return Map.of("error", "Order is required");
+        }
+        return trackShipmentWithOrder(order.getAwbNumber(), order);
+    }
+
+    /**
      * Track shipment by AWB number.
      */
     public Map<String, Object> trackShipment(String awb) {
+        return trackShipmentWithOrder(awb, null);
+    }
+
+    private Map<String, Object> trackShipmentWithOrder(String awb, com.daivatech.ecommerce.entity.CustomerOrder order) {
         if (awb == null || awb.isBlank()) {
             return Map.of("error", "AWB is required");
         }
@@ -299,27 +313,62 @@ public class XpressBeesService {
             milestones.add(Map.of(
                     "status", "ORDER_CONFIRMED",
                     "title", "Order Packed & Ready for Pickup",
-                    "time", now.minusHours(4).format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")),
+                    "time", now.minusHours(6).format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")),
                     "location", warehouseCity + " Fulfillment Hub"
             ));
             milestones.add(Map.of(
                     "status", "MANIFESTED",
                     "title", "Xpressbees Courier Picked Up Shipment",
-                    "time", now.minusHours(2).format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")),
+                    "time", now.minusHours(4).format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")),
                     "location", warehouseCity + " Gateway Hub"
             ));
             milestones.add(Map.of(
                     "status", "IN_TRANSIT",
                     "title", "In Transit to Regional Sorting Center",
-                    "time", now.minusMinutes(30).format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")),
+                    "time", now.minusMinutes(90).format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")),
                     "location", "En Route"
             ));
+
+            String currentStatus = "IN_TRANSIT";
+            String expectedDelivery = now.plusDays(2).format(DateTimeFormatter.ofPattern("dd MMM yyyy"));
+
+            if (order != null) {
+                if ("DELIVERED".equalsIgnoreCase(order.getOrderStatus()) || "DELIVERED".equalsIgnoreCase(order.getCourierStatus())) {
+                    currentStatus = "DELIVERED";
+                    LocalDateTime delTime = order.getDeliveredAt() != null ? order.getDeliveredAt() : now;
+                    milestones.add(Map.of(
+                            "status", "DELIVERED",
+                            "title", "Delivered at Customer Doorstep",
+                            "time", delTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")),
+                            "location", (order.getCity() != null && !order.getCity().isBlank()) ? order.getCity() + ", " + order.getState() : "Customer Address"
+                    ));
+                    expectedDelivery = "Delivered on " + delTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
+                } else if ("RTO_INITIATED".equalsIgnoreCase(order.getCourierStatus()) || "RTO_IN_TRANSIT".equalsIgnoreCase(order.getCourierStatus()) || ("CANCELLED".equalsIgnoreCase(order.getOrderStatus()) && order.getAwbNumber() != null)) {
+                    currentStatus = "RTO_IN_TRANSIT";
+                    milestones.add(Map.of(
+                            "status", "RTO_IN_TRANSIT",
+                            "title", "Cancelled in Transit - Package Returning to Hub (RTO)",
+                            "time", now.format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")),
+                            "location", "Xpressbees Reverse Transit Network"
+                    ));
+                    expectedDelivery = "Cancelled by Customer • Return in Transit";
+                } else if ("UNDELIVERED".equalsIgnoreCase(order.getCourierStatus()) || "DELIVERY_FAILED".equalsIgnoreCase(order.getOrderStatus())) {
+                    currentStatus = "DELIVERY_FAILED";
+                    milestones.add(Map.of(
+                            "status", "DELIVERY_FAILED",
+                            "title", "Doorstep Delivery Attempt Failed (" + (order.getDeliveryFailureReason() != null ? order.getDeliveryFailureReason() : "Customer Refused/Unavailable") + ")",
+                            "time", now.format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")),
+                            "location", (order.getCity() != null && !order.getCity().isBlank()) ? order.getCity() : warehouseCity
+                    ));
+                    expectedDelivery = "Delivery Attempt Failed • Initiating RTO";
+                }
+            }
 
             Map<String, Object> trackInfo = new HashMap<>();
             trackInfo.put("awb", safeAwb);
             trackInfo.put("courierName", "Xpressbees Air Express");
-            trackInfo.put("currentStatus", "IN_TRANSIT");
-            trackInfo.put("expectedDelivery", now.plusDays(2).format(DateTimeFormatter.ofPattern("dd MMM yyyy")));
+            trackInfo.put("currentStatus", currentStatus);
+            trackInfo.put("expectedDelivery", expectedDelivery);
             trackInfo.put("milestones", milestones);
             trackInfo.put("trackingUrl", trackingUrlTemplate.replace("{awb}", safeAwb));
             return trackInfo;

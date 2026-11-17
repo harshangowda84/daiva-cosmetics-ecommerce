@@ -78,7 +78,7 @@ public class ShippingController {
             return ResponseEntity.badRequest().body(Map.of("error", "No shipment tracking number (AWB) assigned yet"));
         }
 
-        Map<String, Object> trackInfo = xpressBeesService.trackShipment(order.getAwbNumber());
+        Map<String, Object> trackInfo = xpressBeesService.trackShipment(order);
         return ResponseEntity.ok(trackInfo);
     }
 

@@ -29,7 +29,10 @@ import {
   Trash2,
   Edit3,
   Briefcase,
-  RotateCcw
+  RotateCcw,
+  XCircle,
+  AlertCircle,
+  Ban
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -62,27 +65,52 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(null);
 
+  // Dedicated Customer Order Cancellation Modal state (handles both pre-dispatch and in-transit)
+  const [cancellingOrderModal, setCancellingOrderModal] = useState<CustomerOrder | null>(null);
+  const [cancellationReason, setCancellationReason] = useState<string>('Ordered by mistake / accidental click');
+  const [cancellationNotes, setCancellationNotes] = useState<string>('');
+  const [submittingCancellation, setSubmittingCancellation] = useState<boolean>(false);
+
   useEffect(() => {
     api.getProducts().then((prods) => setCatalogProducts(prods)).catch(() => {});
   }, []);
 
-  const handleCancelOrder = async (order: CustomerOrder) => {
-    const isDispatched = order.orderStatus === 'SHIPPED' || !!order.awbNumber;
-    const confirmMsg = isDispatched
-      ? `This order has already been dispatched via XpressBees. If you cancel now, courier RTO will bring the shipment back and your refund will be processed immediately. Proceed with cancellation?`
-      : `Cancel Order #${order.orderNumber}? Instant refund will be issued and inventory restored.`;
+  const handleOpenCancelModal = (order: CustomerOrder) => {
+    setCancellingOrderModal(order);
+    const isDispatched = order.orderStatus === 'SHIPPED' || !!order.awbNumber || order.courierStatus === 'IN_TRANSIT';
+    setCancellationReason(
+      isDispatched
+        ? 'Delivery is taking too long'
+        : 'Ordered by mistake / accidental click'
+    );
+    setCancellationNotes('');
+  };
 
-    if (!window.confirm(confirmMsg)) return;
-
+  const handleConfirmCancellation = async () => {
+    if (!cancellingOrderModal) return;
+    setSubmittingCancellation(true);
     try {
-      setCancellingOrderId(order.id);
-      const updated = await api.cancelOrder(order.id, 'Customer requested cancellation via Profile');
-      setOrders((prev) => prev.map((o) => (o.id === order.id ? updated : o)));
-      alert(`Order #${order.orderNumber} successfully cancelled! ${updated.refundStatus === 'REFUNDED' ? 'Instant refund completed.' : ''}`);
+      const fullReason = `${cancellationReason}${cancellationNotes.trim() ? ': ' + cancellationNotes.trim() : ''}`;
+      const updated = await api.cancelOrder(cancellingOrderModal.id, fullReason);
+      setOrders((prev) => prev.map((o) => (o.id === cancellingOrderModal.id ? updated : o)));
+
+      // Refetch/update tracking info immediately
+      try {
+        const refreshedTracking = await api.trackOrderShipment(cancellingOrderModal.id);
+        setTrackingMap((prev) => ({ ...prev, [cancellingOrderModal.id]: refreshedTracking }));
+      } catch {}
+
+      const isDispatched = cancellingOrderModal.orderStatus === 'SHIPPED' || !!cancellingOrderModal.awbNumber;
+      alert(
+        `Order #${cancellingOrderModal.orderNumber} successfully cancelled!\n` +
+        (isDispatched ? 'XpressBees courier notified to halt doorstep delivery and return package (RTO).\n' : '') +
+        (updated.refundStatus === 'REFUNDED' ? `Instant refund of ₹${updated.totalAmount.toLocaleString()} initiated to original payment method.` : '')
+      );
+      setCancellingOrderModal(null);
     } catch (err: any) {
       alert('Cancellation failed: ' + err.message);
     } finally {
-      setCancellingOrderId(null);
+      setSubmittingCancellation(false);
     }
   };
 
@@ -130,6 +158,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
   // Determine which stage (0 to 3) the order is in:
   // 0: Confirmation, 1: Fulfillment, 2: Transit, 3: Delivery
   const getStageIndex = (order: CustomerOrder, tracking?: ShipmentTracking | null): number => {
+    // If order entity is DELIVERED, it is ALWAYS stage 3 (Delivery / Delivered at Doorstep)
+    if (order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED') {
+      return 3;
+    }
     const status = (tracking?.currentStatus || order.courierStatus || order.orderStatus || '').toUpperCase();
     if (status.includes('DELIVERED')) return 3;
     if (
@@ -137,7 +169,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
       status.includes('OUT_FOR_DELIVERY') ||
       status.includes('PICKED_UP') ||
       status.includes('DISPATCHED') ||
-      status.includes('SHIPPED')
+      status.includes('SHIPPED') ||
+      status.includes('RTO')
     ) {
       return 2;
     }
@@ -873,10 +906,27 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                     <h3 className="font-serif text-lg font-bold text-neutral-900 dark:text-[#EDE4DA]">
                                       Order Tracking Journey
                                     </h3>
-                                    <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400 animate-ping" />
-                                      {tracking?.currentStatus || order.courierStatus || 'Processing'}
-                                    </span>
+                                    {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? (
+                                      <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                        DELIVERED
+                                      </span>
+                                    ) : (order.courierStatus === 'RTO_INITIATED' || order.courierStatus === 'RTO_IN_TRANSIT' || (order.orderStatus === 'CANCELLED' && !!order.awbNumber)) ? (
+                                      <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                                        RTO IN TRANSIT
+                                      </span>
+                                    ) : (order.orderStatus === 'DELIVERY_FAILED' || order.courierStatus === 'UNDELIVERED') ? (
+                                      <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-red-100 dark:bg-red-950/70 text-red-800 dark:text-red-300 border border-red-300 dark:border-red-800">
+                                        <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+                                        DELIVERY FAILED (RTO)
+                                      </span>
+                                    ) : (
+                                      <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400 animate-ping" />
+                                        {tracking?.currentStatus || order.courierStatus || 'Processing'}
+                                      </span>
+                                    )}
                                   </div>
                                   <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                                     Xpressbees Air Express •{' '}
@@ -921,8 +971,38 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                 </div>
                               </div>
 
-                              {/* Estimated Delivery Notice if available */}
-                              {tracking?.expectedDelivery && (
+                              {/* Estimated / Completed Delivery Notice */}
+                              {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? (
+                                <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs animate-in fade-in duration-200">
+                                  <div className="flex items-center gap-2 text-emerald-900 dark:text-emerald-300">
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                    <span className="font-semibold">Doorstep Delivery Completed:</span>
+                                  </div>
+                                  <span className="font-bold text-emerald-900 dark:text-emerald-200 font-mono text-xs sm:text-sm">
+                                    {order.deliveredAt ? new Date(order.deliveredAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Delivered Today'}
+                                  </span>
+                                </div>
+                              ) : (order.courierStatus === 'RTO_INITIATED' || order.courierStatus === 'RTO_IN_TRANSIT' || (order.orderStatus === 'CANCELLED' && !!order.awbNumber)) ? (
+                                <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-xs">
+                                  <div className="flex items-center gap-2 text-amber-900 dark:text-amber-300">
+                                    <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                                    <span className="font-semibold">Shipment Cancelled in Transit:</span>
+                                  </div>
+                                  <span className="font-medium text-amber-800 dark:text-amber-200 text-[11px] sm:text-xs">
+                                    Package Returning to Origin (RTO) • Instant Refund Completed
+                                  </span>
+                                </div>
+                              ) : (order.orderStatus === 'DELIVERY_FAILED' || order.courierStatus === 'UNDELIVERED') ? (
+                                <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/60 rounded-xl px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-xs">
+                                  <div className="flex items-center gap-2 text-red-900 dark:text-red-300">
+                                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                                    <span className="font-semibold">Delivery Attempt Failed:</span>
+                                  </div>
+                                  <span className="font-medium text-red-800 dark:text-red-200 text-[11px] sm:text-xs">
+                                    {order.deliveryFailureReason || 'Doorstep delivery failed • Initiating RTO'}
+                                  </span>
+                                </div>
+                              ) : tracking?.expectedDelivery ? (
                                 <div className="bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs">
                                   <div className="flex items-center gap-2 text-amber-900 dark:text-amber-300">
                                     <Clock className="w-4 h-4 text-amber-700 dark:text-amber-400" />
@@ -932,7 +1012,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                     {tracking.expectedDelivery}
                                   </span>
                                 </div>
-                              )}
+                              ) : null}
 
                               {/* ANIMATED FLUID JOURNEY PIPELINE */}
                               <div className="pt-8 pb-4 px-2 sm:px-6 relative select-none">
@@ -995,14 +1075,20 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                       <span className="w-3.5 h-0.5 bg-amber-400 rounded-full" />
                                     </div>
 
-                                    <div className="relative bg-[#1E1611] text-white px-2.5 py-1 rounded-xl shadow-lg border border-neutral-700 flex items-center gap-1.5">
-                                      <Truck className="w-4 h-4 text-amber-400" />
-                                      <span className="text-[9px] font-mono font-bold tracking-tight text-amber-300">
-                                        {currentStage === 3 ? 'DELIVERED' : 'IN MOTION'}
+                                    <div className={`relative px-2.5 py-1 rounded-xl shadow-lg border flex items-center gap-1.5 ${
+                                      currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
+                                        ? 'bg-emerald-700 text-white border-emerald-600'
+                                        : (order.courierStatus === 'RTO_INITIATED' || order.courierStatus === 'RTO_IN_TRANSIT')
+                                        ? 'bg-amber-800 text-white border-amber-700'
+                                        : 'bg-[#1E1611] text-white border-neutral-700'
+                                    }`}>
+                                      <Truck className={`w-4 h-4 ${currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'text-white' : 'text-amber-400'}`} />
+                                      <span className={`text-[9px] font-mono font-bold tracking-tight ${currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'text-white' : 'text-amber-300'}`}>
+                                        {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'DELIVERED' : (order.courierStatus === 'RTO_INITIATED' || order.courierStatus === 'RTO_IN_TRANSIT') ? 'RTO TRANSIT' : 'IN MOTION'}
                                       </span>
                                     </div>
 
-                                    <div className="w-1.5 h-1.5 bg-amber-500 rounded-full mx-auto mt-0.5 animate-ping" />
+                                    <div className={`w-1.5 h-1.5 mx-auto mt-0.5 rounded-full ${currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'bg-emerald-400' : 'bg-amber-500 animate-ping'}`} />
                                   </div>
                                 </div>
 
@@ -1073,19 +1159,25 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                   <div className="flex flex-col items-center group">
                                     <div
                                       className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-                                        currentStage === 3
-                                          ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
+                                        currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
+                                          ? 'bg-emerald-600 text-white border border-emerald-600 shadow-emerald-500/20'
                                           : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
                                       }`}
                                     >
-                                      <Home className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
+                                      {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? (
+                                        <Check className="w-6 h-6 text-white" strokeWidth={2.5} />
+                                      ) : (
+                                        <Home className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
+                                      )}
                                     </div>
                                     <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Delivery</p>
-                                    <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
-                                      {currentStage === 3 ? 'Delivered' : 'Doorstep Dispatch'}
+                                    <p className={`text-[11px] mt-0.5 ${currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-neutral-500 dark:text-neutral-400'}`}>
+                                      {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'Delivered' : 'Doorstep Dispatch'}
                                     </p>
                                     <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono mt-0.5">
-                                      {tracking?.expectedDelivery || 'Expected soon'}
+                                      {currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
+                                        ? (order.deliveredAt ? new Date(order.deliveredAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Today')
+                                        : (tracking?.expectedDelivery || 'Expected soon')}
                                     </span>
                                   </div>
                                 </div>
@@ -1107,33 +1199,50 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                     <Loader2 className="w-4 h-4 animate-spin text-amber-600 dark:text-amber-400" />
                                     <span>Fetching live courier updates...</span>
                                   </div>
-                                ) : tracking?.milestones && tracking.milestones.length > 0 ? (
-                                  <div className="space-y-3 relative before:absolute before:top-2 before:bottom-2 before:left-[11px] before:w-0.5 before:bg-neutral-200 dark:before:bg-[#2C211A] pl-1">
-                                    {tracking.milestones.map((m: any, idx: number) => (
-                                      <div key={idx} className="relative flex items-start gap-3">
-                                        <div className="w-6 h-6 rounded-full bg-emerald-600 dark:bg-emerald-500 text-white flex items-center justify-center z-10 shrink-0 shadow-2xs">
-                                          <Check className="w-3.5 h-3.5" />
-                                        </div>
-                                        <div className="bg-neutral-50/80 dark:bg-[#231A14] p-3 rounded-xl border border-neutral-200/80 dark:border-[#2C211A] shadow-2xs flex-1">
-                                          <div className="flex flex-wrap items-center justify-between gap-1">
-                                            <p className="font-semibold text-neutral-900 dark:text-[#EDE4DA] text-xs">{m.title}</p>
-                                            <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500">
-                                              {m.time}
-                                            </span>
+                                ) : (() => {
+                                  const isDelivered = currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED';
+                                  const rawMilestones = tracking?.milestones || [];
+                                  const hasDeliveredMilestone = rawMilestones.some((m: any) => m.status === 'DELIVERED' || m.title?.toLowerCase().includes('delivered'));
+                                  const effectiveMilestones = [...rawMilestones];
+                                  if (isDelivered && !hasDeliveredMilestone) {
+                                    effectiveMilestones.push({
+                                      status: 'DELIVERED',
+                                      title: 'Delivered at Customer Doorstep',
+                                      time: order.deliveredAt
+                                        ? new Date(order.deliveredAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                        : 'Delivered Today',
+                                      location: (order.city && order.state) ? `${order.city}, ${order.state}` : (order.city || 'Customer Address'),
+                                    });
+                                  }
+
+                                  return effectiveMilestones.length > 0 ? (
+                                    <div className="space-y-3 relative before:absolute before:top-2 before:bottom-2 before:left-[11px] before:w-0.5 before:bg-neutral-200 dark:before:bg-[#2C211A] pl-1">
+                                      {effectiveMilestones.map((m: any, idx: number) => (
+                                        <div key={idx} className="relative flex items-start gap-3">
+                                          <div className="w-6 h-6 rounded-full bg-emerald-600 dark:bg-emerald-500 text-white flex items-center justify-center z-10 shrink-0 shadow-2xs">
+                                            <Check className="w-3.5 h-3.5" />
                                           </div>
-                                          <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5 flex items-center gap-1">
-                                            <MapPin className="w-3 h-3 text-neutral-400 dark:text-neutral-500" />
-                                            <span>{m.location}</span>
-                                          </p>
+                                          <div className="bg-neutral-50/80 dark:bg-[#231A14] p-3 rounded-xl border border-neutral-200/80 dark:border-[#2C211A] shadow-2xs flex-1">
+                                            <div className="flex flex-wrap items-center justify-between gap-1">
+                                              <p className="font-semibold text-neutral-900 dark:text-[#EDE4DA] text-xs">{m.title}</p>
+                                              <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500">
+                                                {m.time}
+                                              </span>
+                                            </div>
+                                            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5 flex items-center gap-1">
+                                              <MapPin className="w-3 h-3 text-neutral-400 dark:text-neutral-500" />
+                                              <span>{m.location}</span>
+                                            </p>
+                                          </div>
                                         </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <div className="p-4 rounded-xl bg-neutral-50 dark:bg-[#231A14] border border-neutral-200/60 dark:border-[#2C211A] text-center text-xs text-neutral-500 dark:text-neutral-400">
-                                    Shipment manifested and waiting for courier gateway scan.
-                                  </div>
-                                )}
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="p-4 rounded-xl bg-neutral-50 dark:bg-[#231A14] border border-neutral-200/60 dark:border-[#2C211A] text-center text-xs text-neutral-500 dark:text-neutral-400">
+                                      Shipment manifested and waiting for courier gateway scan.
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             </div>
                           </div>
@@ -1271,15 +1380,28 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                           </div>
 
                           <div className="flex items-center gap-2 flex-wrap">
-                            {/* Cancellation Button (Pre-Dispatch or In-Transit) */}
+                            {/* Cancellation Button (Pre-Dispatch or In-Transit Customer Self-Service) */}
                             {order.orderStatus !== 'DELIVERED' && order.orderStatus !== 'CANCELLED' && order.orderStatus !== 'RETURNED' && (
                               <button
                                 type="button"
-                                onClick={() => handleCancelOrder(order)}
-                                disabled={cancellingOrderId === order.id}
-                                className="px-3.5 py-1.5 rounded-full border border-red-300 dark:border-red-900/60 bg-red-50/50 dark:bg-red-950/30 text-red-700 dark:text-red-400 font-semibold text-xs hover:bg-red-100 transition shadow-2xs cursor-pointer"
+                                onClick={() => handleOpenCancelModal(order)}
+                                className={`px-3.5 py-1.5 rounded-full border text-xs font-semibold transition shadow-2xs flex items-center gap-1.5 cursor-pointer ${
+                                  (order.orderStatus === 'SHIPPED' || !!order.awbNumber || order.courierStatus === 'IN_TRANSIT')
+                                    ? 'border-amber-400 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/60'
+                                    : 'border-red-300 dark:border-red-900/60 bg-red-50/50 dark:bg-red-950/30 text-red-700 dark:text-red-400 hover:bg-red-100'
+                                }`}
                               >
-                                {cancellingOrderId === order.id ? 'Processing...' : 'Cancel Order'}
+                                {(order.orderStatus === 'SHIPPED' || !!order.awbNumber || order.courierStatus === 'IN_TRANSIT') ? (
+                                  <>
+                                    <Ban className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
+                                    <span>Cancel Delivery (In-Transit)</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <XCircle className="w-3.5 h-3.5" />
+                                    <span>Cancel Order</span>
+                                  </>
+                                )}
                               </button>
                             )}
 
@@ -1803,6 +1925,156 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
             }
           }}
         />
+      )}
+
+      {/* CUSTOMER ORDER CANCELLATION MODAL (Pre-Dispatch or In-Transit Customer Self-Service) */}
+      {cancellingOrderModal && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => !submittingCancellation && setCancellingOrderModal(null)}
+        >
+          <div
+            className="relative bg-white dark:bg-[#1A1410] rounded-3xl max-w-lg w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-neutral-200 dark:border-[#2C211A] p-6 space-y-5 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between pb-3 border-b border-neutral-100 dark:border-[#2C211A]">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-red-700 dark:text-red-400 tracking-wider">
+                  {(cancellingOrderModal.orderStatus === 'SHIPPED' || !!cancellingOrderModal.awbNumber || cancellingOrderModal.courierStatus === 'IN_TRANSIT')
+                    ? 'In-Transit Courier Interception'
+                    : 'Pre-Dispatch Cancellation'}
+                </span>
+                <h3 className="font-serif text-lg font-bold text-neutral-900 dark:text-[#EDE4DA] mt-0.5">
+                  Cancel Order #{cancellingOrderModal.orderNumber}
+                </h3>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                  Total Order Value: <span className="font-bold text-neutral-900 dark:text-white">₹{cancellingOrderModal.totalAmount.toLocaleString()}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={submittingCancellation}
+                onClick={() => setCancellingOrderModal(null)}
+                className="w-8 h-8 rounded-full bg-neutral-100 dark:bg-[#251D18] hover:bg-neutral-200 text-neutral-500 flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Workflow Notice Banner */}
+            {(cancellingOrderModal.orderStatus === 'SHIPPED' || !!cancellingOrderModal.awbNumber || cancellingOrderModal.courierStatus === 'IN_TRANSIT') ? (
+              <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-xs text-amber-900 dark:text-amber-200 space-y-1.5">
+                <div className="flex items-center gap-2 font-bold text-amber-950 dark:text-amber-100">
+                  <Truck className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>XpressBees Courier In-Transit Interception (RTO)</span>
+                </div>
+                <p className="text-[11.5px] leading-relaxed text-amber-900/90 dark:text-amber-300">
+                  This parcel has already been dispatched via XpressBees (AWB #{cancellingOrderModal.awbNumber || 'Active'}).
+                  Once you confirm, we will immediately instruct the courier to <strong>halt doorstep delivery and return the shipment to our warehouse</strong>.
+                </p>
+                <p className="text-[11.5px] font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 pt-1">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>Instant Refund: ₹{cancellingOrderModal.totalAmount.toLocaleString()} will be refunded to your original payment method immediately.</span>
+                </p>
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/60 text-xs text-blue-900 dark:text-blue-200 space-y-1.5">
+                <div className="flex items-center gap-2 font-bold text-blue-950 dark:text-blue-100">
+                  <Package className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span>Pre-Dispatch Instant Cancellation</span>
+                </div>
+                <p className="text-[11.5px] leading-relaxed text-blue-900/90 dark:text-blue-300">
+                  Your order has not yet left our warehouse. It will be cancelled instantly, your reserved items returned to stock, and your payment refunded.
+                </p>
+                <p className="text-[11.5px] font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 pt-1">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>Instant 100% Refund: ₹{cancellingOrderModal.totalAmount.toLocaleString()} will be credited immediately.</span>
+                </p>
+              </div>
+            )}
+
+            {/* Reason Selector */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-neutral-800 dark:text-neutral-200 block">
+                Please select a reason for cancellation <span className="text-red-500">*</span>:
+              </label>
+              <div className="space-y-1.5 text-xs">
+                {[
+                  'Ordered by mistake / accidental click',
+                  'Delivery is taking too long',
+                  'Found better price or alternative elsewhere',
+                  'Entered incorrect delivery address or contact number',
+                  'Ordered wrong shade / skincare variant',
+                  'Placed duplicate order',
+                  'Other reason',
+                ].map((reason) => (
+                  <label
+                    key={reason}
+                    className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition cursor-pointer ${
+                      cancellationReason === reason
+                        ? 'border-red-500 bg-red-50/40 dark:bg-red-950/20 text-red-950 dark:text-red-200 font-medium'
+                        : 'border-neutral-200 dark:border-[#2C211A] text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-[#251D18]'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="cancel_reason"
+                      checked={cancellationReason === reason}
+                      onChange={() => setCancellationReason(reason)}
+                      className="text-red-600 focus:ring-red-500"
+                    />
+                    <span>{reason}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Optional Additional Comments */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-neutral-700 dark:text-neutral-300 block">
+                Additional Comments (Optional):
+              </label>
+              <textarea
+                rows={2}
+                value={cancellationNotes}
+                onChange={(e) => setCancellationNotes(e.target.value)}
+                placeholder="Share any additional details..."
+                className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-[#2C211A] bg-[#FAF9F6] dark:bg-[#231A14] text-xs text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-red-500"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="pt-2 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                disabled={submittingCancellation}
+                onClick={() => setCancellingOrderModal(null)}
+                className="px-4 py-2 rounded-full border border-neutral-300 dark:border-[#382B21] text-neutral-700 dark:text-neutral-300 text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-[#251D18] transition cursor-pointer"
+              >
+                Don't Cancel
+              </button>
+              <button
+                type="button"
+                disabled={submittingCancellation}
+                onClick={handleConfirmCancellation}
+                className="px-5 py-2.5 rounded-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition shadow-md disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+              >
+                {submittingCancellation ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Processing Cancellation & Refund...</span>
+                  </>
+                ) : (
+                  <>
+                    <Ban className="w-3.5 h-3.5" />
+                    <span>Confirm Cancellation & Instant Refund</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
