@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Product, UserBrowsingHistoryItem } from '../types';
-import { useAuth } from './AuthContext';
+import { useAuth, getActiveSessionUser } from './AuthContext';
 import { api } from '../services/api';
 
 interface BrowsingHistoryContextType {
@@ -21,8 +21,7 @@ export const BrowsingHistoryProvider: React.FC<{ children: React.ReactNode }> = 
 
   const [history, setHistory] = useState<UserBrowsingHistoryItem[]>(() => {
     try {
-      const savedUserStr = localStorage.getItem('daiva_user');
-      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+      const savedUser = getActiveSessionUser();
       const key = savedUser?.id ? `daiva_browsing_history_${savedUser.id}` : 'daiva_browsing_history_guest';
       const saved = localStorage.getItem(key);
       return saved ? JSON.parse(saved) : [];

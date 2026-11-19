@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Product } from '../types';
-import { useAuth } from './AuthContext';
+import { useAuth, getActiveSessionUser } from './AuthContext';
 import { api } from '../services/api';
 
 interface WishlistContextType {
@@ -21,8 +21,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const [wishlist, setWishlist] = useState<Product[]>(() => {
     try {
-      const savedUserStr = localStorage.getItem('daiva_user');
-      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+      const savedUser = getActiveSessionUser();
       const key = savedUser?.id ? `daiva_wishlist_${savedUser.id}` : 'daiva_wishlist_guest';
       const saved = localStorage.getItem(key);
       return saved ? JSON.parse(saved) : [];

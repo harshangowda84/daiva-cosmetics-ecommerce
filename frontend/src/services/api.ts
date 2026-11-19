@@ -780,7 +780,7 @@ export const api = {
       profilePictureUrl: data.profilePictureUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
       googleSub: data.googleSub || `sub_${Date.now()}`,
     };
-    localStorage.setItem('daiva_user', JSON.stringify(fallbackUser));
+    sessionStorage.setItem('aura_customer_session', JSON.stringify(fallbackUser));
     return fallbackUser;
   },
 

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { CartItem, Product } from '../types';
 import { useWishlist } from './WishlistContext';
-import { useAuth } from './AuthContext';
+import { useAuth, getActiveSessionUser } from './AuthContext';
 import { api } from '../services/api';
 
 interface CartContextType {
@@ -36,8 +36,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [items, setItems] = useState<CartItem[]>(() => {
     try {
-      const savedUserStr = localStorage.getItem('daiva_user');
-      const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
+      const savedUser = getActiveSessionUser();
       const key = savedUser?.id ? `daiva_cart_${savedUser.id}` : 'daiva_cart_guest';
       const saved = localStorage.getItem(key);
       if (saved) {
