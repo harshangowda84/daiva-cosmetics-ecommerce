@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Check, Copy, Share2 } from 'lucide-react';
 import { Product } from '../types';
 import { getFullImageUrl, handleImageError } from '../utils/image';
@@ -110,10 +111,13 @@ export const ShareProductModal: React.FC<ShareProductModalProps> = ({ product, i
     },
   ];
 
-  return (
+  const modalContent = (
     <div
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
-      onClick={onClose}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
     >
       <div
         className="relative bg-white dark:bg-[#1A1410] rounded-3xl max-w-md w-full p-6 shadow-2xl border border-neutral-200 dark:border-[#2C211A] overflow-hidden"
@@ -131,7 +135,10 @@ export const ShareProductModal: React.FC<ShareProductModalProps> = ({ product, i
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
             className="w-8 h-8 rounded-full bg-neutral-100 dark:bg-[#251D18] hover:bg-neutral-200 dark:hover:bg-[#33261D] text-neutral-500 dark:text-neutral-400 flex items-center justify-center transition"
           >
             <X className="w-4 h-4" />
@@ -233,4 +240,6 @@ export const ShareProductModal: React.FC<ShareProductModalProps> = ({ product, i
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };

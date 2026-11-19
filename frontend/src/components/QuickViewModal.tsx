@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Star, ShoppingBag, Check, Heart, ExternalLink, Sparkles, ShieldCheck, Truck } from 'lucide-react';
 import { Product, ProductVariant } from '../types';
 import { useCart } from '../context/CartContext';
@@ -103,10 +104,13 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
     onNavigate('pdp', product.slug);
   };
 
-  return (
+  const modalContent = (
     <div
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200"
-      onClick={onClose}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
     >
       <div
         className="relative bg-[#FAF9F6] dark:bg-[#16100D] border border-[#EAE1D3] dark:border-[#2C211A] rounded-3xl shadow-2xl max-w-3xl w-full overflow-hidden max-h-[92vh] flex flex-col md:flex-row text-neutral-800 dark:text-[#EDE4DA]"
@@ -114,7 +118,10 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
       >
         {/* Close button */}
         <button
-          onClick={onClose}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
           type="button"
           className="absolute top-3.5 right-3.5 z-20 w-8 h-8 rounded-full bg-white/80 dark:bg-[#201813]/80 hover:bg-white dark:hover:bg-[#2C211A] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-[#EDE4DA] flex items-center justify-center shadow-xs border border-neutral-200/60 dark:border-[#2C211A] transition"
           title="Close quick view"
@@ -352,4 +359,6 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
