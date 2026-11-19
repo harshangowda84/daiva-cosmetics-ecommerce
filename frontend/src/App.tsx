@@ -50,10 +50,23 @@ const parseRouteFromUrl = (): { page: string; param: string } => {
     return { page, param };
   }
 
-  // Fallback check pathname if user went to /admin
-  const pathname = window.location.pathname.replace(/^\//, '').trim().toLowerCase();
-  if (pathname === 'admin') {
+  // Fallback check pathname if user went to /admin, /pdp/slug, /plp/sub, /cart, etc.
+  const pathname = window.location.pathname.replace(/^\//, '').trim();
+  const lowerPath = pathname.toLowerCase();
+  if (lowerPath === 'admin') {
     return { page: 'admin', param: '' };
+  }
+  if (lowerPath.startsWith('pdp/')) {
+    const rawSlug = pathname.slice(4);
+    return { page: 'pdp', param: decodeURIComponent(rawSlug) };
+  }
+  if (lowerPath.startsWith('plp/')) {
+    const rawSub = pathname.slice(4);
+    return { page: 'plp', param: decodeURIComponent(rawSub) };
+  }
+  const simplePages = ['cart', 'wishlist', 'history', 'browsing-history', 'checkout', 'profile', 'login', 'register', 'plp'];
+  if (simplePages.includes(lowerPath)) {
+    return { page: lowerPath, param: '' };
   }
 
   return { page: 'home', param: '' };

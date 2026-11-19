@@ -144,6 +144,29 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [slug]);
 
+  // Parse volume / quantity variants (e.g. 10ml, 50ml, 100ml)
+  const parsedVariants = React.useMemo<ProductVariant[]>(() => {
+    if (!product) return [];
+    if (product.variants && product.variants.length > 0) return product.variants;
+    if (product.variantsJson) {
+      try {
+        const parsed = JSON.parse(product.variantsJson);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (_) {}
+    }
+    return [];
+  }, [product]);
+
+  // Synchronize initial selectedVariant
+  useEffect(() => {
+    if (parsedVariants.length > 0) {
+      const match = parsedVariants.find((v) => v.stock > 0) || parsedVariants[0];
+      setSelectedVariant(match);
+    } else {
+      setSelectedVariant(null);
+    }
+  }, [parsedVariants]);
+
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-16 text-center">
@@ -173,29 +196,6 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
   const galleryList = product.galleryImages
     ? product.galleryImages.split(',').filter(Boolean)
     : [product.imageUrl];
-
-  // Parse volume / quantity variants (e.g. 10ml, 50ml, 100ml)
-  const parsedVariants = React.useMemo<ProductVariant[]>(() => {
-    if (!product) return [];
-    if (product.variants && product.variants.length > 0) return product.variants;
-    if (product.variantsJson) {
-      try {
-        const parsed = JSON.parse(product.variantsJson);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch (_) {}
-    }
-    return [];
-  }, [product]);
-
-  // Synchronize initial selectedVariant
-  useEffect(() => {
-    if (parsedVariants.length > 0) {
-      const match = parsedVariants.find((v) => v.stock > 0) || parsedVariants[0];
-      setSelectedVariant(match);
-    } else {
-      setSelectedVariant(null);
-    }
-  }, [parsedVariants]);
 
   // Price & Stock derived from active variant or product
   const currentPrice = selectedVariant ? selectedVariant.price : product.price;
