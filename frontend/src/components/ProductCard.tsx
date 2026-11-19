@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Star, ShoppingBag, Check, Plus, Minus, Heart, Layers } from 'lucide-react';
+import { Star, ShoppingBag, Check, Plus, Minus, Heart, Layers, Eye, Share2 } from 'lucide-react';
 import { Product } from '../types';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
+import { useSettings } from '../context/SettingsContext';
 import { getFullImageUrl, handleImageError } from '../utils/image';
+import { ShareProductModal } from './ShareProductModal';
 
 interface ProductCardProps {
   product: Product;
@@ -13,9 +15,22 @@ interface ProductCardProps {
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate }) => {
   const { items, addToCart, updateQuantity, removeFromCart } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
+  const { settings } = useSettings();
+
   const [justAdded, setJustAdded] = useState(false);
   const [pulse, setPulse] = useState(false);
   const [heartPop, setHeartPop] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+
+  // PLP Settings Switches
+  const showBadges = settings.plp_show_badges !== 'false';
+  const showRating = settings.plp_show_rating !== 'false';
+  const showVolume = settings.plp_show_volume_pill !== 'false';
+  const showStock = settings.plp_show_stock_badge !== 'false';
+  const showQuickPreview = settings.plp_show_quick_preview === 'true';
+  const showShareButton = settings.plp_show_share_button !== 'false';
+  const enableHoverSlideshow = settings.plp_hover_slideshow !== 'false';
+  const slideshowIntervalMs = Math.max(500, (parseFloat(settings.plp_hover_slideshow_timer) || 1.5) * 1000);
 
   // Multi-image hover preview
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -37,12 +52,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
     return list.length > 0 ? list : [product.imageUrl];
   }, [product.imageUrl, product.galleryImages]);
 
-  // Handle smooth auto-cycling through images while hovering (1.7s per image)
+  // Handle smooth auto-cycling through images while hovering
   useEffect(() => {
-    if (isHovered && allImages.length > 1) {
+    if (isHovered && allImages.length > 1 && enableHoverSlideshow) {
       cycleIntervalRef.current = setInterval(() => {
         setActiveImageIndex((prev) => (prev + 1) % allImages.length);
-      }, 1700);
+      }, slideshowIntervalMs);
     } else {
       if (cycleIntervalRef.current) {
         clearInterval(cycleIntervalRef.current);
@@ -55,7 +70,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
         clearInterval(cycleIntervalRef.current);
       }
     };
-  }, [isHovered, allImages.length]);
+  }, [isHovered, allImages.length, enableHoverSlideshow, slideshowIntervalMs]);
 
   const cartItem = items.find((item) => item.product.id === product.id);
   const quantityInCart = cartItem ? cartItem.quantity : 0;
@@ -122,21 +137,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
         ))}
 
         {/* Badges */}
-        <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 items-start z-10">
-          {product.isBestSeller && (
-            <span className="bg-[#1E1611] dark:bg-rose-950 text-white text-[9px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full shadow-xs border border-transparent dark:border-rose-800/40">
-              Best Seller
-            </span>
-          )}
-          {product.discountPercent && product.discountPercent > 0 && (
-            <span className="bg-rose-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-xs">
-              {product.discountPercent}% OFF
-            </span>
-          )}
-        </div>
+        {showBadges && (
+          <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 items-start z-10">
+            {product.isBestSeller && (
+              <span className="bg-[#1E1611] dark:bg-rose-950 text-white text-[9px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full shadow-xs border border-transparent dark:border-rose-800/40">
+                Best Seller
+              </span>
+            )}
+            {product.discountPercent && product.discountPercent > 0 && (
+              <span className="bg-rose-600 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-xs">
+                {product.discountPercent}% OFF
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Floating Rating Badge at Bottom Left (matching reference photo) */}
-        {product.rating && (
+        {showRating && product.rating && (
           <div className="absolute bottom-2.5 left-2.5 bg-white/95 dark:bg-black/85 backdrop-blur-xs text-neutral-800 dark:text-[#EDE4DA] text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-xs border border-white/50 dark:border-white/10 z-10">
             <span>{product.rating.toFixed(1)}</span>
             <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-500" />
@@ -176,8 +193,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
           </div>
         )}
 
-        {/* Wishlist Button at Top Right */}
-        <div className="absolute top-2.5 right-2.5 z-10">
+        {/* Top Right Action Pills: Wishlist, Quick Peek, Share */}
+        <div className="absolute top-2.5 right-2.5 z-10 flex flex-col gap-1.5 items-end">
           <button
             type="button"
             onClick={handleToggleWishlist}
@@ -194,6 +211,36 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
               } ${heartPop ? 'scale-125' : 'scale-100'}`}
             />
           </button>
+
+          {/* Quick Preview Eye Trigger */}
+          {showQuickPreview && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onNavigate('pdp', product.slug);
+              }}
+              className="w-7 h-7 rounded-full bg-white/85 dark:bg-[#1A1410]/85 text-neutral-600 dark:text-neutral-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-white dark:hover:bg-[#251D18] flex items-center justify-center shadow-xs border border-white/60 dark:border-[#2C211A] transition select-none"
+              title="Quick peek cosmetic details"
+            >
+              <Eye className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Share Modal Trigger */}
+          {showShareButton && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsShareOpen(true);
+              }}
+              className="w-7 h-7 rounded-full bg-white/85 dark:bg-[#1A1410]/85 text-neutral-600 dark:text-neutral-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-white dark:hover:bg-[#251D18] flex items-center justify-center shadow-xs border border-white/60 dark:border-[#2C211A] transition select-none"
+              title="Share cosmetic"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -212,9 +259,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
           </h3>
 
           {/* Volume */}
-          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5 h-4 truncate">
-            {product.volume || ''}
-          </p>
+          {showVolume && (
+            <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5 h-4 truncate">
+              {product.volume || ''}
+            </p>
+          )}
         </div>
 
         <div className="mt-3 pt-2.5 border-t border-neutral-100 dark:border-[#2C211A] flex items-center justify-between gap-1.5">
@@ -231,15 +280,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
             </div>
 
             {/* Stock indicator */}
-            <div className="mt-0.5">
-              {isOutOfStock ? (
-                <span className="text-[10px] text-red-600 dark:text-red-400 font-medium">Out of Stock</span>
-              ) : isLowStock ? (
-                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">Only {product.stockQuantity} left</span>
-              ) : (
-                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">In Stock</span>
-              )}
-            </div>
+            {showStock && (
+              <div className="mt-0.5">
+                {isOutOfStock ? (
+                  <span className="text-[10px] text-red-600 dark:text-red-400 font-medium">Out of Stock</span>
+                ) : isLowStock ? (
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">Only {product.stockQuantity} left</span>
+                ) : (
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">In Stock</span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Easy Cart Interactive Button */}
@@ -309,6 +360,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
           </div>
         </div>
       </div>
+
+      {/* 1-Click Share Modal */}
+      {isShareOpen && (
+        <ShareProductModal
+          product={product}
+          isOpen={isShareOpen}
+          onClose={() => setIsShareOpen(false)}
+        />
+      )}
     </div>
   );
 };

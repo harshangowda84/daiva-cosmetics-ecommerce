@@ -29,10 +29,20 @@ export const normalizeProduct = (product: Product): Product => {
   } else if (imageUrl) {
     galleryImages = imageUrl;
   }
+  let variants = product.variants;
+  if (!variants && product.variantsJson) {
+    try {
+      const parsed = JSON.parse(product.variantsJson);
+      if (Array.isArray(parsed)) {
+        variants = parsed;
+      }
+    } catch (_) {}
+  }
   return {
     ...product,
     imageUrl,
     galleryImages,
+    variants,
   };
 };
 

@@ -1,3 +1,13 @@
+export interface ProductVariant {
+  id?: string;
+  size: string; // e.g. "10ml", "30ml", "50ml", "100ml" or "30g", "50g"
+  label?: string; // e.g. "10ml Travel Mini"
+  price: number;
+  originalPrice?: number;
+  stock: number;
+  sku?: string;
+}
+
 export interface Product {
   id: number;
   name: string;
@@ -17,6 +27,8 @@ export interface Product {
   imageUrl: string;
   galleryImages?: string;
   volume: string;
+  variantsJson?: string;
+  variants?: ProductVariant[];
   skinType: string;
   keyIngredients: string;
   howToUse: string;
@@ -30,6 +42,7 @@ export interface CartItem {
   quantity: number;
   selected?: boolean;
   fromWishlist?: boolean;
+  selectedVariant?: string; // e.g. "10ml"
 }
 
 export interface User {

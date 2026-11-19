@@ -6,10 +6,17 @@ import { api } from '../services/api';
 
 interface CartContextType {
   items: CartItem[];
-  addToCart: (product: Product, quantity?: number, openDrawer?: boolean, fromWishlist?: boolean) => void;
-  removeFromCart: (productId: number) => void;
-  updateQuantity: (productId: number, quantity: number) => void;
-  toggleSelectItem: (productId: number) => void;
+  addToCart: (
+    product: Product,
+    quantity?: number,
+    openDrawer?: boolean,
+    fromWishlist?: boolean,
+    selectedVariant?: string,
+    variantPrice?: number
+  ) => void;
+  removeFromCart: (productId: number, variant?: string) => void;
+  updateQuantity: (productId: number, quantity: number, variant?: string) => void;
+  toggleSelectItem: (productId: number, variant?: string) => void;
   selectAllItems: (select: boolean) => void;
   clearCart: () => void;
   clearSelectedItems: () => void;
@@ -190,13 +197,27 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     product: Product,
     quantity: number = 1,
     openDrawer: boolean = false,
-    fromWishlist: boolean = false
+    fromWishlist: boolean = false,
+    selectedVariant?: string,
+    variantPrice?: number
   ) => {
+    const targetProduct: Product = (selectedVariant || variantPrice !== undefined)
+      ? {
+          ...product,
+          volume: selectedVariant || product.volume,
+          price: variantPrice !== undefined ? variantPrice : product.price,
+        }
+      : product;
+
+    const variantKey = selectedVariant || targetProduct.volume || '';
+
     setItems((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
+      const existing = prev.find(
+        (item) => item.product.id === product.id && (item.selectedVariant || item.product.volume || '') === variantKey
+      );
       if (existing) {
         return prev.map((item) =>
-          item.product.id === product.id
+          item.product.id === product.id && (item.selectedVariant || item.product.volume || '') === variantKey
             ? {
                 ...item,
                 quantity: item.quantity + quantity,
@@ -206,7 +227,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
             : item
         );
       }
-      return [...prev, { product, quantity, selected: true, fromWishlist }];
+      return [
+        ...prev,
+        {
+          product: targetProduct,
+          quantity,
+          selected: true,
+          fromWishlist,
+          selectedVariant: selectedVariant || targetProduct.volume,
+        },
+      ];
     });
 
     if (user?.id) {
@@ -220,12 +250,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const removeFromCart = (productId: number) => {
-    const itemToRemove = items.find((item) => item.product.id === productId);
+  const removeFromCart = (productId: number, variant?: string) => {
+    const itemToRemove = items.find(
+      (item) => item.product.id === productId && (!variant || (item.selectedVariant || item.product.volume) === variant)
+    );
     if (itemToRemove && itemToRemove.fromWishlist) {
       addToWishlist(itemToRemove.product);
     }
-    setItems((prev) => prev.filter((item) => item.product.id !== productId));
+    setItems((prev) =>
+      prev.filter(
+        (item) => !(item.product.id === productId && (!variant || (item.selectedVariant || item.product.volume) === variant))
+      )
+    );
 
     if (user?.id) {
       api.removeFromCart(user.id, productId).catch((err) => {
@@ -234,14 +270,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateQuantity = (productId: number, quantity: number) => {
+  const updateQuantity = (productId: number, quantity: number, variant?: string) => {
     if (quantity <= 0) {
-      removeFromCart(productId);
+      removeFromCart(productId, variant);
       return;
     }
     setItems((prev) =>
       prev.map((item) =>
-        item.product.id === productId ? { ...item, quantity } : item
+        item.product.id === productId && (!variant || (item.selectedVariant || item.product.volume) === variant)
+          ? { ...item, quantity }
+          : item
       )
     );
 
@@ -252,11 +290,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const toggleSelectItem = (productId: number) => {
+  const toggleSelectItem = (productId: number, variant?: string) => {
     let updatedSelected = true;
     setItems((prev) =>
       prev.map((item) => {
-        if (item.product.id === productId) {
+        if (item.product.id === productId && (!variant || (item.selectedVariant || item.product.volume) === variant)) {
           updatedSelected = item.selected === false ? true : false;
           return { ...item, selected: updatedSelected };
         }

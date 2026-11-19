@@ -3,6 +3,7 @@ import { Search, ShoppingBag, User as UserIcon, Shield, Menu, X, Sparkles, Heart
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 import { ThemeToggle } from './ThemeToggle';
 import { api } from '../services/api';
 import { Product } from '../types';
@@ -18,6 +19,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, current
   const { totalItemsCount, setIsCartDrawerOpen } = useCart();
   const { totalWishlistCount } = useWishlist();
   const { user, isAdmin, logout } = useAuth();
+  const { navbarCategories } = useSettings();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
@@ -63,14 +65,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, current
     }
   };
 
-  const navCategories = [
-    { label: 'All Cosmetics', value: 'All' },
-    { label: 'Serums & Treatments', value: 'Serums & Treatments' },
-    { label: 'Moisturizers', value: 'Moisturizers' },
-    { label: 'Lip Care & Makeup', value: 'Lip Care & Makeup' },
-    { label: 'Sun Care', value: 'Sun Care' },
-    { label: 'Cleansers', value: 'Cleansers' },
-  ];
+  const navCategories = React.useMemo<{ label: string; value: string; badge?: string }[]>(() => {
+    const activeItems = (navbarCategories || []).filter((c) => c.active !== false);
+    return [
+      { label: 'All Cosmetics', value: 'All' },
+      ...activeItems.map((c) => ({
+        label: c.name,
+        value: c.slug || c.name,
+        badge: c.badge,
+      })),
+    ];
+  }, [navbarCategories]);
 
   const isCatActive = (catValue: string): boolean => {
     if (currentPage !== 'plp') return false;
@@ -307,7 +312,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, current
                     : 'text-neutral-600 dark:text-neutral-300 hover:text-rose-700 dark:hover:text-rose-400 hover:border-b-2 hover:border-rose-400'
                 }`}
               >
-                <span>{cat.label}</span>
+                <span className="flex items-center gap-1.5">
+                  <span>{cat.label}</span>
+                  {cat.badge && (
+                    <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold uppercase tracking-normal bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 border border-rose-200/60 dark:border-rose-800/50">
+                      {cat.badge}
+                    </span>
+                  )}
+                </span>
                 {active && (
                   <span className="absolute -bottom-[2px] left-0 right-0 h-0.5 bg-rose-600 dark:bg-rose-500 rounded-full animate-in fade-in zoom-in-75 duration-200" />
                 )}
@@ -373,7 +385,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, current
                       : 'text-neutral-700 dark:text-neutral-300 hover:text-rose-700 dark:hover:text-rose-400 hover:bg-[#f1ece5] dark:hover:bg-[#201813]'
                   }`}
                 >
-                  {cat.label}
+                  <div className="flex items-center justify-between">
+                    <span>{cat.label}</span>
+                    {cat.badge && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+                        {cat.badge}
+                      </span>
+                    )}
+                  </div>
                 </button>
               );
             })}

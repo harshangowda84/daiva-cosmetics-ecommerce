@@ -94,6 +94,9 @@ public class AdminController {
             product.setBrand(payload.get("brand") != null ? payload.get("brand").toString() : "Aura Luxe");
             product.setSubCategory(payload.get("subCategory") != null ? payload.get("subCategory").toString() : "Serums & Treatments");
             product.setVolume(payload.get("volume") != null ? payload.get("volume").toString() : "30 ml");
+            if (payload.get("variantsJson") != null) {
+                product.setVariantsJson(payload.get("variantsJson").toString());
+            }
             product.setSkinType(payload.get("skinType") != null ? payload.get("skinType").toString() : "All Skin Types");
 
             // Safe String truncation
@@ -226,6 +229,9 @@ public class AdminController {
                 }
                 if (payload.containsKey("volume") && payload.get("volume") != null) {
                     p.setVolume(payload.get("volume").toString());
+                }
+                if (payload.containsKey("variantsJson")) {
+                    p.setVariantsJson(payload.get("variantsJson") != null ? payload.get("variantsJson").toString() : null);
                 }
                 if (payload.containsKey("skinType") && payload.get("skinType") != null) {
                     p.setSkinType(payload.get("skinType").toString());

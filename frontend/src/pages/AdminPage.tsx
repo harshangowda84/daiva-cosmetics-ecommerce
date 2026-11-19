@@ -43,15 +43,22 @@ import {
   EyeOff,
   MessageSquare,
   AlertTriangle,
-  FileText
+  FileText,
+  SlidersHorizontal,
+  Layers,
+  Sparkles as SparklesIcon
 } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Product, CustomerOrder, ZohoStatus, UploadedImageInfo, StockMovement, ProductBatch, ShipmentTracking, ProductReview, OrderReturnExchange } from '../types';
+import { useSettings } from '../context/SettingsContext';
+import { Product, ProductVariant, CustomerOrder, ZohoStatus, UploadedImageInfo, StockMovement, ProductBatch, ShipmentTracking, ProductReview, OrderReturnExchange } from '../types';
 import { getFullImageUrl, handleImageError } from '../utils/image';
 import { XpressBeesSimulatorModal } from '../components/XpressBeesSimulatorModal';
 import { AdminFooterPoliciesEditor } from '../components/AdminFooterPoliciesEditor';
+import { AdminCategoriesEditor } from '../components/AdminCategoriesEditor';
+import { AdminStorefrontControls } from '../components/AdminStorefrontControls';
+import { AdminVariantsEditor } from '../components/AdminVariantsEditor';
 
 interface AdminPageProps {
   onNavigate: (page: string, param?: string) => void;
@@ -73,10 +80,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const [loginError, setLoginError] = useState('');
 
   // Dashboard states
-  const [activeTab, setActiveTab] = useState<'inventory' | 'orders' | 'zoho' | 'ledger' | 'reviews' | 'returns' | 'footer_policies'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'orders' | 'zoho' | 'ledger' | 'reviews' | 'returns' | 'footer_policies' | 'categories' | 'plp_pdp_settings'>('inventory');
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [zohoStatus, setZohoStatus] = useState<ZohoStatus | null>(null);
+
+  // Settings & Navigation Context
+  const { navbarCategories } = useSettings();
+
+  // Size / Quantity Variants for Add & Edit product modals
+  const [newVariants, setNewVariants] = useState<ProductVariant[]>([]);
+  const [editVariants, setEditVariants] = useState<ProductVariant[]>([]);
 
   // Reviews Moderation states (Tab 5)
   const [adminReviews, setAdminReviews] = useState<ProductReview[]>([]);
@@ -838,11 +852,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         howToUse: newProduct.howToUse.trim(),
         isBestSeller: Boolean(newProduct.isBestSeller),
         isFeatured: Boolean(newProduct.isFeatured),
+        variantsJson: newVariants.length > 0 ? JSON.stringify(newVariants) : undefined,
       };
 
       const created = await api.createAdminProduct(payload);
       setProducts((prev) => [created, ...prev]);
       setIsAddModalOpen(false);
+      setNewVariants([]);
 
       // Reset form
       setNewProduct({
@@ -908,12 +924,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         isActive: editingProduct.isActive ?? true,
         isFeatured: editingProduct.isFeatured ?? false,
         isBestSeller: editingProduct.isBestSeller ?? false,
+        variantsJson: editVariants.length > 0 ? JSON.stringify(editVariants) : null,
       };
 
       const updated = await api.updateAdminProduct(editingProduct.id, payload);
       setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
       setIsEditModalOpen(false);
       setEditingProduct(null);
+      setEditVariants([]);
 
       showToast(`Updated "${updated.name}" successfully!`, 'success', 5000);
     } catch (err: any) {
@@ -1227,6 +1245,30 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
             <FileText className="w-4 h-4 text-purple-600 dark:text-purple-400" />
             <span>Footer & Policies CMS</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('categories')}
+            className={`px-5 py-3 rounded-t-xl transition flex items-center gap-2 ${
+              activeTab === 'categories'
+                ? 'bg-white dark:bg-[#1A1410] border-t border-l border-r border-neutral-200 dark:border-[#2C211A] text-rose-700 dark:text-rose-400 shadow-sm'
+                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-white'
+            }`}
+          >
+            <Layers className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+            <span>Navbar & Categories</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('plp_pdp_settings')}
+            className={`px-5 py-3 rounded-t-xl transition flex items-center gap-2 ${
+              activeTab === 'plp_pdp_settings'
+                ? 'bg-white dark:bg-[#1A1410] border-t border-l border-r border-neutral-200 dark:border-[#2C211A] text-amber-600 dark:text-amber-400 shadow-sm'
+                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-white'
+            }`}
+          >
+            <SlidersHorizontal className="w-4 h-4 text-amber-500" />
+            <span>PLP & PDP Controls</span>
+          </button>
         </div>
 
         {/* TAB 1: PRODUCT CATALOG & INVENTORY TABLE */}
@@ -1367,6 +1409,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                             <button
                               onClick={() => {
                                 setEditingProduct({ ...p });
+                                let existing: ProductVariant[] = [];
+                                if (p.variants && p.variants.length > 0) {
+                                  existing = p.variants;
+                                } else if (p.variantsJson) {
+                                  try {
+                                    const parsed = JSON.parse(p.variantsJson);
+                                    if (Array.isArray(parsed)) existing = parsed;
+                                  } catch (_) {}
+                                }
+                                setEditVariants(existing);
                                 setIsEditModalOpen(true);
                               }}
                               className="px-2.5 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-lg text-xs font-semibold flex items-center gap-1 transition border border-neutral-200"
@@ -2440,6 +2492,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         {activeTab === 'footer_policies' && (
           <AdminFooterPoliciesEditor onNavigate={onNavigate} showToast={showToast} />
         )}
+
+        {/* TAB 8: NAVBAR & CATEGORIES CMS */}
+        {activeTab === 'categories' && (
+          <AdminCategoriesEditor products={products} onNavigate={onNavigate} showToast={showToast} />
+        )}
+
+        {/* TAB 9: PLP & PDP STOREFRONT CONTROLS */}
+        {activeTab === 'plp_pdp_settings' && (
+          <AdminStorefrontControls onNavigate={onNavigate} showToast={showToast} />
+        )}
       </main>
 
       {/* MODAL 0: PRODUCT STOCK AUDIT TRAIL & RESTOCK DIALOG */}
@@ -3241,12 +3303,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     onChange={(e) => setNewProduct({ ...newProduct, subCategory: e.target.value })}
                     className="w-full p-2.5 rounded-xl border border-neutral-200 bg-[#FAF9F6] focus:outline-none focus:ring-1 focus:ring-rose-500"
                   >
-                    <option value="Serums & Treatments">Serums & Treatments</option>
-                    <option value="Moisturizers">Moisturizers</option>
-                    <option value="Lip Care & Makeup">Lip Care & Makeup</option>
-                    <option value="Sun Care">Sun Care</option>
-                    <option value="Face Makeup">Face Makeup</option>
-                    <option value="Cleansers">Cleansers</option>
+                    {navbarCategories && navbarCategories.length > 0 ? (
+                      navbarCategories.map((c) => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="Serums & Treatments">Serums & Treatments</option>
+                        <option value="Moisturizers">Moisturizers</option>
+                        <option value="Lip Care & Makeup">Lip Care & Makeup</option>
+                        <option value="Sun Care">Sun Care</option>
+                        <option value="Face Makeup">Face Makeup</option>
+                        <option value="Cleansers">Cleansers</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -3319,6 +3389,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     <option value="Oily / Acne-Prone">Oily / Acne-Prone</option>
                     <option value="Mature & Normal">Mature & Normal</option>
                   </select>
+                </div>
+
+                {/* Size / Quantity Variants Builder */}
+                <div className="sm:col-span-2">
+                  <AdminVariantsEditor
+                    variants={newVariants}
+                    onChange={setNewVariants}
+                    basePrice={newProduct.price}
+                    baseOriginalPrice={newProduct.originalPrice}
+                    baseSku={newProduct.sku}
+                  />
                 </div>
 
                 <div className="sm:col-span-2 space-y-3 pt-1">
@@ -3616,12 +3697,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     onChange={(e) => setEditingProduct({ ...editingProduct, subCategory: e.target.value })}
                     className="w-full p-2.5 rounded-xl border border-neutral-200 bg-[#FAF9F6] focus:outline-none focus:ring-1 focus:ring-rose-500"
                   >
-                    <option value="Serums & Treatments">Serums & Treatments</option>
-                    <option value="Moisturizers">Moisturizers</option>
-                    <option value="Lip Care & Makeup">Lip Care & Makeup</option>
-                    <option value="Sun Care">Sun Care</option>
-                    <option value="Face Makeup">Face Makeup</option>
-                    <option value="Cleansers">Cleansers</option>
+                    {navbarCategories && navbarCategories.length > 0 ? (
+                      navbarCategories.map((c) => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="Serums & Treatments">Serums & Treatments</option>
+                        <option value="Moisturizers">Moisturizers</option>
+                        <option value="Lip Care & Makeup">Lip Care & Makeup</option>
+                        <option value="Sun Care">Sun Care</option>
+                        <option value="Face Makeup">Face Makeup</option>
+                        <option value="Cleansers">Cleansers</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
@@ -3693,6 +3782,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                     <option value="Oily / Acne-Prone">Oily / Acne-Prone</option>
                     <option value="Mature & Normal">Mature & Normal</option>
                   </select>
+                </div>
+
+                {/* Size / Quantity Variants Builder */}
+                <div className="sm:col-span-2">
+                  <AdminVariantsEditor
+                    variants={editVariants}
+                    onChange={setEditVariants}
+                    basePrice={editingProduct.price}
+                    baseOriginalPrice={editingProduct.originalPrice || editingProduct.price}
+                    baseSku={editingProduct.sku}
+                  />
                 </div>
 
                 <div className="sm:col-span-2 space-y-3 pt-1">

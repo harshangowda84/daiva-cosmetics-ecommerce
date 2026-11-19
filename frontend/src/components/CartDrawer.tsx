@@ -201,7 +201,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigate }) => {
                             {item.product.name}
                           </h4>
                           <button
-                            onClick={() => removeFromCart(item.product.id)}
+                            onClick={() => removeFromCart(item.product.id, item.selectedVariant || item.product.volume)}
                             className="text-neutral-400 hover:text-red-600 dark:hover:text-red-400 transition p-1 shrink-0 -mr-1 -mt-1"
                             title={item.fromWishlist ? 'Remove from bag & return to wishlist' : 'Remove item'}
                           >
@@ -209,7 +209,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigate }) => {
                           </button>
                         </div>
                         <p className="text-[11px] text-neutral-400 dark:text-neutral-500 mt-0.5 line-clamp-1">
-                          {item.product.volume} | {item.product.brand}
+                          <span className="font-semibold text-rose-700 dark:text-rose-400">{item.selectedVariant || item.product.volume}</span> • {item.product.brand}
                           {item.fromWishlist && (
                             <span className="ml-1 text-rose-700 dark:text-rose-400 font-medium">
                               (From Wishlist)
@@ -223,7 +223,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigate }) => {
                         <div className="flex items-center border border-neutral-200 dark:border-[#382B21] rounded-lg bg-white dark:bg-[#251D18] shadow-xs">
                           <button
                             type="button"
-                            onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                            onClick={() => updateQuantity(item.product.id, item.quantity - 1, item.selectedVariant || item.product.volume)}
                             className="p-1 px-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-[#2C211A] transition rounded-l-lg"
                             aria-label="Decrease quantity"
                           >
@@ -234,7 +234,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ onNavigate }) => {
                           </span>
                           <button
                             type="button"
-                            onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                            onClick={() => updateQuantity(item.product.id, item.quantity + 1, item.selectedVariant || item.product.volume)}
                             className="p-1 px-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-[#2C211A] transition rounded-r-lg"
                             aria-label="Increase quantity"
                           >

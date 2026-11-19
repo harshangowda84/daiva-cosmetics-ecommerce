@@ -17,13 +17,17 @@ import {
   AlertCircle,
   Loader2,
   Heart,
-  Share2
+  Share2,
+  MessageCircle,
+  Award,
+  CheckCircle2
 } from 'lucide-react';
-import { Product, ProductReview, ReviewSummaryResponse } from '../types';
+import { Product, ProductVariant, ProductReview, ReviewSummaryResponse } from '../types';
 import { api } from '../services/api';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
+import { useSettings } from '../context/SettingsContext';
 import { useBrowsingHistory } from '../context/BrowsingHistoryContext';
 import { ProductCard } from '../components/ProductCard';
 import { RecentlyViewedSection } from '../components/RecentlyViewedSection';
@@ -40,6 +44,7 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
   const { user } = useAuth();
   const { isInWishlist, toggleWishlist } = useWishlist();
   const { recordView } = useBrowsingHistory();
+  const { settings } = useSettings();
   const reviewsRef = useRef<HTMLDivElement>(null);
 
   const [product, setProduct] = useState<Product | null>(null);
@@ -50,6 +55,9 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
   const [loading, setLoading] = useState(true);
   const [added, setAdded] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
+
+  // Volume / Size Variants
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
 
   // Customer Reviews Read-Only Display States
   const [reviewsOpen, setReviewsOpen] = useState(false);
@@ -166,17 +174,73 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
     ? product.galleryImages.split(',').filter(Boolean)
     : [product.imageUrl];
 
+  // Parse volume / quantity variants (e.g. 10ml, 50ml, 100ml)
+  const parsedVariants = React.useMemo<ProductVariant[]>(() => {
+    if (!product) return [];
+    if (product.variants && product.variants.length > 0) return product.variants;
+    if (product.variantsJson) {
+      try {
+        const parsed = JSON.parse(product.variantsJson);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (_) {}
+    }
+    return [];
+  }, [product]);
+
+  // Synchronize initial selectedVariant
+  useEffect(() => {
+    if (parsedVariants.length > 0) {
+      const match = parsedVariants.find((v) => v.stock > 0) || parsedVariants[0];
+      setSelectedVariant(match);
+    } else {
+      setSelectedVariant(null);
+    }
+  }, [parsedVariants]);
+
+  // Price & Stock derived from active variant or product
+  const currentPrice = selectedVariant ? selectedVariant.price : product.price;
+  const currentOriginalPrice = selectedVariant?.originalPrice ?? product.originalPrice;
+  const currentStock = selectedVariant ? selectedVariant.stock : product.stockQuantity;
+  const currentDiscountPercent =
+    currentOriginalPrice && currentOriginalPrice > currentPrice
+      ? Math.round(((currentOriginalPrice - currentPrice) / currentOriginalPrice) * 100)
+      : product.discountPercent;
+
+  const isLowStock = currentStock > 0 && currentStock <= 5;
+  const isOutOfStock = currentStock <= 0;
+
   const handleAddToCart = () => {
-    if (product.stockQuantity <= 0) return;
-    addToCart(product, quantity);
+    if (currentStock <= 0) return;
+    addToCart(
+      product,
+      quantity,
+      true, // open cart drawer
+      false,
+      selectedVariant?.size,
+      selectedVariant?.price
+    );
     setAdded(true);
     setTimeout(() => setAdded(false), 1500);
   };
 
   const handleBuyNow = () => {
-    if (product.stockQuantity <= 0) return;
-    addToCart(product, quantity);
+    if (currentStock <= 0) return;
+    addToCart(
+      product,
+      quantity,
+      false,
+      false,
+      selectedVariant?.size,
+      selectedVariant?.price
+    );
     onNavigate('checkout');
+  };
+
+  const handleWhatsAppInquiry = () => {
+    const phone = (settings.whatsapp_number || '919876543210').replace(/[^0-9]/g, '');
+    const variantTxt = selectedVariant ? ` (${selectedVariant.size} - ₹${selectedVariant.price})` : '';
+    const msg = encodeURIComponent(`Hello Aura Luxe! I would like to inquire about "${product.name}"${variantTxt}. SKU: ${selectedVariant?.sku || product.sku}. Is this ready for express dispatch?`);
+    window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
   };
 
   const isWishlisted = product ? isInWishlist(product.id) : false;
@@ -185,9 +249,6 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
     if (!product) return;
     await toggleWishlist(product);
   };
-
-  const isLowStock = product.stockQuantity > 0 && product.stockQuantity <= 5;
-  const isOutOfStock = product.stockQuantity <= 0;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
@@ -287,11 +348,16 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
           <div className="p-4 rounded-2xl bg-[#FAF5EF] dark:bg-[#1A1410] border border-[#EAE1D3] dark:border-[#2C211A] space-y-2 transition-colors">
             <div className="flex items-baseline gap-3">
               <span className="font-serif text-3xl font-bold text-neutral-900 dark:text-[#EDE4DA]">
-                ₹{product.price.toLocaleString()}
+                ₹{currentPrice.toLocaleString()}
               </span>
-              {product.originalPrice && (
+              {currentOriginalPrice && currentOriginalPrice > currentPrice && (
                 <span className="text-sm text-neutral-400 line-through">
-                  ₹{product.originalPrice.toLocaleString()}
+                  ₹{currentOriginalPrice.toLocaleString()}
+                </span>
+              )}
+              {currentDiscountPercent > 0 && (
+                <span className="text-xs font-bold bg-rose-600 text-white px-2 py-0.5 rounded-full">
+                  {currentDiscountPercent}% OFF
                 </span>
               )}
               <span className="text-xs text-neutral-500 dark:text-neutral-400">Taxes included</span>
@@ -301,18 +367,71 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
               <div className="flex items-center gap-1.5">
                 <span className={`w-2.5 h-2.5 rounded-full ${isOutOfStock ? 'bg-red-500' : isLowStock ? 'bg-amber-500' : 'bg-emerald-500'}`} />
                 <span className="font-semibold text-neutral-800 dark:text-[#EDE4DA]">
-                  {isOutOfStock ? 'Currently Out of Stock' : isLowStock ? `Hurry! Only ${product.stockQuantity} items left in stock` : `In Stock (${product.stockQuantity} available)`}
+                  {isOutOfStock ? 'Currently Out of Stock' : isLowStock ? `Hurry! Only ${currentStock} items left in stock` : `In Stock (${currentStock} available)`}
                 </span>
               </div>
               <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">100% Authentic</span>
             </div>
           </div>
 
+          {/* Interactive Volume / Size Variant Selector (10ml, 50ml, 100ml...) */}
+          {settings.pdp_show_volume_selector !== 'false' && parsedVariants.length > 0 && (
+            <div className="p-4 rounded-2xl bg-white dark:bg-[#1A1410] border border-neutral-200 dark:border-[#2C211A] space-y-3">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-bold text-neutral-800 dark:text-[#EDE4DA] flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Choose Size / Quantity:</span>
+                </span>
+                {selectedVariant && (
+                  <span className="text-[11px] font-semibold text-rose-700 dark:text-rose-400">
+                    {selectedVariant.label || selectedVariant.size}
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {parsedVariants.map((v) => {
+                  const isSelected = selectedVariant?.size === v.size;
+                  const isSoldOut = v.stock <= 0;
+                  return (
+                    <button
+                      key={v.size}
+                      type="button"
+                      disabled={isSoldOut}
+                      onClick={() => setSelectedVariant(v)}
+                      className={`p-2.5 rounded-xl text-center border transition-all duration-200 select-none cursor-pointer ${
+                        isSelected
+                          ? 'bg-[#1E1611] dark:bg-rose-950 text-white border-[#1E1611] dark:border-rose-600 shadow-md ring-2 ring-rose-500/20 scale-102'
+                          : isSoldOut
+                          ? 'bg-neutral-100 dark:bg-[#201813] text-neutral-400 border-neutral-200 dark:border-[#2C211A] cursor-not-allowed opacity-50 line-through'
+                          : 'bg-[#FAF9F6] dark:bg-[#221914] text-neutral-800 dark:text-[#EDE4DA] border-neutral-200 dark:border-[#2C211A] hover:border-rose-400 dark:hover:border-rose-700'
+                      }`}
+                    >
+                      <div className="font-bold text-xs">{v.size}</div>
+                      <div className={`text-[11px] font-semibold mt-0.5 ${isSelected ? 'text-amber-300' : 'text-rose-700 dark:text-rose-400'}`}>
+                        ₹{v.price.toLocaleString()}
+                      </div>
+                      {isSoldOut ? (
+                        <div className="text-[9px] text-red-500 font-semibold mt-0.5">Sold out</div>
+                      ) : v.stock <= 5 ? (
+                        <div className={`text-[9px] font-medium mt-0.5 ${isSelected ? 'text-amber-200' : 'text-amber-600'}`}>
+                          {v.stock} left
+                        </div>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Specs pills */}
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div className="p-3 bg-white dark:bg-[#1A1410] rounded-xl border border-neutral-200 dark:border-[#2C211A]">
               <span className="text-neutral-400 dark:text-neutral-500 block text-[10px] uppercase tracking-wider">Volume / Size</span>
-              <span className="font-semibold text-neutral-800 dark:text-[#EDE4DA]">{product.volume || 'Standard'}</span>
+              <span className="font-semibold text-neutral-800 dark:text-[#EDE4DA]">
+                {selectedVariant ? selectedVariant.size : product.volume || 'Standard'}
+              </span>
             </div>
             <div className="p-3 bg-white dark:bg-[#1A1410] rounded-xl border border-neutral-200 dark:border-[#2C211A]">
               <span className="text-neutral-400 dark:text-neutral-500 block text-[10px] uppercase tracking-wider">Skin Type</span>
@@ -322,24 +441,26 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
 
           {/* Quantity Selector & Action Buttons */}
           <div className="space-y-3 pt-2">
-            <div className="flex items-center gap-4">
-              <div className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Quantity:</div>
-              <div className="flex items-center border border-neutral-300 dark:border-[#382B21] rounded-xl bg-white dark:bg-[#251D18]">
-                <button
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="px-3 py-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-[#33261D] text-sm font-bold"
-                >
-                  -
-                </button>
-                <span className="px-4 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">{quantity}</span>
-                <button
-                  onClick={() => setQuantity(Math.min(product.stockQuantity, quantity + 1))}
-                  className="px-3 py-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-[#33261D] text-sm font-bold"
-                >
-                  +
-                </button>
+            {settings.pdp_show_quantity_selector !== 'false' && (
+              <div className="flex items-center gap-4">
+                <div className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Quantity:</div>
+                <div className="flex items-center border border-neutral-300 dark:border-[#382B21] rounded-xl bg-white dark:bg-[#251D18]">
+                  <button
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    className="px-3 py-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-[#33261D] text-sm font-bold"
+                  >
+                    -
+                  </button>
+                  <span className="px-4 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">{quantity}</span>
+                  <button
+                    onClick={() => setQuantity(Math.min(currentStock, quantity + 1))}
+                    className="px-3 py-1.5 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-[#33261D] text-sm font-bold"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 pt-2">
               <button
@@ -357,18 +478,20 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
                 <span>{added ? 'Added to Bag' : 'Add to Bag'}</span>
               </button>
 
-              <button
-                onClick={handleBuyNow}
-                disabled={isOutOfStock}
-                className={`flex-1 py-3.5 rounded-full font-semibold text-xs transition flex items-center justify-center gap-2 border ${
-                  isOutOfStock
-                    ? 'border-neutral-200 dark:border-[#2C211A] text-neutral-400 dark:text-neutral-600 cursor-not-allowed'
-                    : 'border-[#1E1611] dark:border-rose-400 text-[#1E1611] dark:text-rose-300 hover:bg-[#1E1611] dark:hover:bg-rose-950 hover:text-white'
-                }`}
-              >
-                <Zap className="w-4 h-4" />
-                <span>Instant Buy Now</span>
-              </button>
+              {settings.pdp_show_instant_buy_now !== 'false' && (
+                <button
+                  onClick={handleBuyNow}
+                  disabled={isOutOfStock}
+                  className={`flex-1 py-3.5 rounded-full font-semibold text-xs transition flex items-center justify-center gap-2 border ${
+                    isOutOfStock
+                      ? 'border-neutral-200 dark:border-[#2C211A] text-neutral-400 dark:text-neutral-600 cursor-not-allowed'
+                      : 'border-[#1E1611] dark:border-rose-400 text-[#1E1611] dark:text-rose-300 hover:bg-[#1E1611] dark:hover:bg-rose-950 hover:text-white'
+                  }`}
+                >
+                  <Zap className="w-4 h-4" />
+                  <span>Instant Buy Now</span>
+                </button>
+              )}
 
               {/* Wishlist Toggle Button */}
               <button
@@ -385,32 +508,62 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
               </button>
 
               {/* Share Product Button */}
+              {settings.pdp_show_direct_share !== 'false' && (
+                <button
+                  type="button"
+                  onClick={() => setIsShareOpen(true)}
+                  className="p-3.5 rounded-full border border-neutral-300 dark:border-[#2C211A] text-neutral-600 dark:text-neutral-300 hover:border-rose-300 hover:text-rose-600 bg-white dark:bg-[#1A1410] hover:bg-rose-50/50 dark:hover:bg-[#251D18] transition flex items-center justify-center shrink-0"
+                  title="Share this cosmetic"
+                >
+                  <Share2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* WhatsApp Direct Inquiry Button */}
+            {settings.pdp_show_whatsapp_share !== 'false' && (
               <button
                 type="button"
-                onClick={() => setIsShareOpen(true)}
-                className="p-3.5 rounded-full border border-neutral-300 dark:border-[#2C211A] text-neutral-600 dark:text-neutral-300 hover:border-rose-300 hover:text-rose-600 bg-white dark:bg-[#1A1410] hover:bg-rose-50/50 dark:hover:bg-[#251D18] transition flex items-center justify-center shrink-0"
-                title="Share this cosmetic"
+                onClick={handleWhatsAppInquiry}
+                className="w-full py-2.5 px-4 rounded-xl border border-emerald-600/30 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center justify-center gap-2 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition cursor-pointer"
               >
-                <Share2 className="w-4 h-4" />
+                <MessageCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Inquire via WhatsApp Concierge</span>
               </button>
-            </div>
+            )}
           </div>
 
           {/* Delivery & Assurance */}
-          <div className="pt-4 border-t border-neutral-200 dark:border-[#2C211A] space-y-2 text-xs text-neutral-600 dark:text-neutral-300">
-            <div className="flex items-center gap-2.5">
-              <Truck className="w-4 h-4 text-rose-700 dark:text-rose-400" />
-              <span>Complimentary shipping on orders above ₹999</span>
+          {settings.pdp_show_delivery_estimator !== 'false' && (
+            <div className="pt-4 border-t border-neutral-200 dark:border-[#2C211A] space-y-2 text-xs text-neutral-600 dark:text-neutral-300">
+              <div className="flex items-center gap-2.5">
+                <Truck className="w-4 h-4 text-rose-700 dark:text-rose-400" />
+                <span>Complimentary shipping on orders above ₹999</span>
+              </div>
+              {settings.pdp_show_clean_actives_badge !== 'false' && (
+                <div className="flex items-center gap-2.5">
+                  <ShieldCheck className="w-4 h-4 text-rose-700 dark:text-rose-400" />
+                  <span>100% Authentic, Clean Certified Botanical Actives</span>
+                </div>
+              )}
+              {settings.pdp_show_dermatologist_tested_badge !== 'false' && (
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Dermatologist Tested & Clinically Validated Formula</span>
+                </div>
+              )}
+              {settings.pdp_show_peta_cruelty_free_badge !== 'false' && (
+                <div className="flex items-center gap-2.5">
+                  <Award className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  <span>100% PETA Certified Cruelty-Free & Vegan</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2.5">
+                <RefreshCw className="w-4 h-4 text-rose-700 dark:text-rose-400" />
+                <span>7-day hassle-free replacement & return guarantee</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2.5">
-              <ShieldCheck className="w-4 h-4 text-rose-700 dark:text-rose-400" />
-              <span>100% Authentic, Clean Certified & Dermatologically Tested</span>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <RefreshCw className="w-4 h-4 text-rose-700 dark:text-rose-400" />
-              <span>3-day hassle-free exchange & return policy</span>
-            </div>
-          </div>
+          )}
 
           {/* Tabs: Details, Ingredients, How to Use */}
           <div className="pt-4 border-t border-neutral-200 dark:border-[#2C211A]">
@@ -421,30 +574,34 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
               >
                 Product Details
               </button>
-              <button
-                onClick={() => setActiveTab('ingredients')}
-                className={`pb-2 transition ${activeTab === 'ingredients' ? 'border-b-2 border-rose-700 dark:border-rose-400 text-rose-700 dark:text-rose-400' : 'text-neutral-400 dark:text-neutral-500'}`}
-              >
-                Key Actives
-              </button>
-              <button
-                onClick={() => setActiveTab('howToUse')}
-                className={`pb-2 transition ${activeTab === 'howToUse' ? 'border-b-2 border-rose-700 dark:border-rose-400 text-rose-700 dark:text-rose-400' : 'text-neutral-400 dark:text-neutral-500'}`}
-              >
-                How To Use
-              </button>
+              {settings.pdp_show_ingredients_accordion !== 'false' && (
+                <button
+                  onClick={() => setActiveTab('ingredients')}
+                  className={`pb-2 transition ${activeTab === 'ingredients' ? 'border-b-2 border-rose-700 dark:border-rose-400 text-rose-700 dark:text-rose-400' : 'text-neutral-400 dark:text-neutral-500'}`}
+                >
+                  Key Actives
+                </button>
+              )}
+              {settings.pdp_show_how_to_use_accordion !== 'false' && (
+                <button
+                  onClick={() => setActiveTab('howToUse')}
+                  className={`pb-2 transition ${activeTab === 'howToUse' ? 'border-b-2 border-rose-700 dark:border-rose-400 text-rose-700 dark:text-rose-400' : 'text-neutral-400 dark:text-neutral-500'}`}
+                >
+                  How To Use
+                </button>
+              )}
             </div>
 
             <div className="pt-4 text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
               {activeTab === 'details' && (
                 <p>{product.description}</p>
               )}
-              {activeTab === 'ingredients' && (
+              {activeTab === 'ingredients' && settings.pdp_show_ingredients_accordion !== 'false' && (
                 <p className="bg-[#FAF5EF] dark:bg-[#1A1410] p-3 rounded-xl border border-[#EAE1D3] dark:border-[#2C211A]">
                   {product.keyIngredients || 'Niacinamide, Hyaluronic Acid, Organic Rosehip Extract.'}
                 </p>
               )}
-              {activeTab === 'howToUse' && (
+              {activeTab === 'howToUse' && settings.pdp_show_how_to_use_accordion !== 'false' && (
                 <p className="bg-[#FAF5EF] dark:bg-[#1A1410] p-3 rounded-xl border border-[#EAE1D3] dark:border-[#2C211A]">
                   {product.howToUse || 'Apply 2-3 drops on clean skin every morning and night.'}
                 </p>
@@ -455,7 +612,8 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
       </div>
 
       {/* EXPANDABLE REVIEWS DROPDOWN SECTION */}
-      <section ref={reviewsRef} className="pt-8 border-t border-neutral-200 dark:border-[#2C211A]">
+      {settings.pdp_show_reviews_section !== 'false' && (
+        <section ref={reviewsRef} className="pt-8 border-t border-neutral-200 dark:border-[#2C211A]">
         <div className="bg-white dark:bg-[#1A1410] rounded-3xl border border-neutral-200 dark:border-[#2C211A] shadow-sm overflow-hidden transition-all duration-300">
           {/* Dropdown Toggle Header */}
           <div
@@ -731,6 +889,7 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
           )}
         </div>
       </section>
+    )}
 
       {/* PHOTO LIGHTBOX MODAL */}
       {previewPhotoUrl && (
@@ -755,7 +914,7 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
       )}
 
       {/* Related Products */}
-      {relatedProducts.length > 0 && (
+      {settings.pdp_show_related_products !== 'false' && relatedProducts.length > 0 && (
         <section className="pt-10 border-t border-neutral-200 dark:border-[#2C211A]">
           <div className="flex justify-between items-end mb-6">
             <div>
@@ -778,7 +937,7 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
       )}
 
       {/* Recently Viewed Products */}
-      {product && (
+      {settings.pdp_show_recently_viewed !== 'false' && product && (
         <RecentlyViewedSection
           currentProductId={product.id}
           onNavigate={onNavigate}

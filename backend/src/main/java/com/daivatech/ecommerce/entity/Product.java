@@ -55,6 +55,9 @@ public class Product {
 
     private String volume; // "30 ml", "50 g"
 
+    @Column(length = 3000)
+    private String variantsJson; // JSON array of variants: [{size: "10ml", price: 499, stock: 25, sku: "..."}, ...]
+
     private String skinType; // "All Skin Types", "Sensitive", "Oily", "Dry"
 
     @Column(length = 1000)
@@ -134,6 +137,9 @@ public class Product {
 
     public String getVolume() { return volume; }
     public void setVolume(String volume) { this.volume = volume; }
+
+    public String getVariantsJson() { return variantsJson; }
+    public void setVariantsJson(String variantsJson) { this.variantsJson = variantsJson; }
 
     public String getSkinType() { return skinType; }
     public void setSkinType(String skinType) { this.skinType = skinType; }

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Filter, SlidersHorizontal, ArrowUpDown, Sparkles, RefreshCw, X } from 'lucide-react';
 import { Product } from '../types';
 import { api } from '../services/api';
+import { useSettings } from '../context/SettingsContext';
 import { ProductCard } from '../components/ProductCard';
 import { RecentlyViewedSection } from '../components/RecentlyViewedSection';
 
@@ -11,8 +12,17 @@ interface PLPPageProps {
 }
 
 export const PLPPage: React.FC<PLPPageProps> = ({ initialSubCategory = 'All', onNavigate }) => {
+  const { settings, navbarCategories } = useSettings();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const showCategoryPills = settings.plp_show_category_pills !== 'false';
+  const showRecentlyViewed = settings.plp_show_recently_viewed !== 'false';
+
+  const subCategories = React.useMemo(() => {
+    const activeItems = (navbarCategories || []).filter((c) => c.active !== false);
+    return ['All', ...activeItems.map((c) => c.slug || c.name)];
+  }, [navbarCategories]);
 
   const getCleanSubCategory = (sub?: string) => {
     if (!sub || sub === 'All') return 'All';
@@ -57,16 +67,6 @@ export const PLPPage: React.FC<PLPPageProps> = ({ initialSubCategory = 'All', on
     };
     fetchProducts();
   }, [selectedSubCategory, selectedSkinType, minPrice, maxPrice, sortBy]);
-
-  const subCategories = [
-    'All',
-    'Serums & Treatments',
-    'Moisturizers',
-    'Lip Care & Makeup',
-    'Sun Care',
-    'Face Makeup',
-    'Cleansers',
-  ];
 
   const skinTypes = [
     'All Skin Types',
@@ -257,9 +257,11 @@ export const PLPPage: React.FC<PLPPageProps> = ({ initialSubCategory = 'All', on
       </div>
 
       {/* Recently Viewed Cosmetics (Browsing History) */}
-      <div className="mt-14 pt-4">
-        <RecentlyViewedSection onNavigate={onNavigate} maxItems={6} />
-      </div>
+      {showRecentlyViewed && (
+        <div className="mt-14 pt-4">
+          <RecentlyViewedSection onNavigate={onNavigate} maxItems={6} />
+        </div>
+      )}
 
       {/* Mobile Filters Drawer */}
       {isMobileFiltersOpen && (

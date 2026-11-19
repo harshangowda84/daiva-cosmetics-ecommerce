@@ -19,6 +19,15 @@ export interface SocialLink {
   active: boolean;
 }
 
+export interface NavbarCategory {
+  id: string;
+  name: string;
+  slug: string;
+  badge?: string;
+  active: boolean;
+  order?: number;
+}
+
 export interface SiteSettings {
   // Brand & Footer
   site_name: string;
@@ -92,8 +101,48 @@ export interface SiteSettings {
   // Social Links JSON
   social_links_json: string;
 
+  // Navbar Categories JSON
+  navbar_categories_json: string;
+
+  // PLP (Product Listing Page) Controls
+  plp_show_badges: string;
+  plp_show_rating: string;
+  plp_show_volume_pill: string;
+  plp_show_stock_badge: string;
+  plp_show_quick_preview: string;
+  plp_hover_slideshow: string;
+  plp_hover_slideshow_timer: string;
+  plp_show_share_button: string;
+  plp_show_category_pills: string;
+  plp_show_recently_viewed: string;
+
+  // PDP (Product Detail Page) Controls
+  pdp_show_volume_selector: string;
+  pdp_show_whatsapp_share: string;
+  pdp_show_direct_share: string;
+  pdp_show_peta_cruelty_free_badge: string;
+  pdp_show_dermatologist_tested_badge: string;
+  pdp_show_clean_actives_badge: string;
+  pdp_show_quantity_selector: string;
+  pdp_show_instant_buy_now: string;
+  pdp_show_reviews_section: string;
+  pdp_show_ingredients_accordion: string;
+  pdp_show_how_to_use_accordion: string;
+  pdp_show_delivery_estimator: string;
+  pdp_show_related_products: string;
+  pdp_show_recently_viewed: string;
+
   [key: string]: string;
 }
+
+export const DEFAULT_NAVBAR_CATEGORIES: NavbarCategory[] = [
+  { id: 'cat-serums', name: 'Serums & Treatments', slug: 'Serums & Treatments', badge: 'Best Seller', active: true, order: 1 },
+  { id: 'cat-moisturizers', name: 'Moisturizers', slug: 'Moisturizers', active: true, order: 2 },
+  { id: 'cat-lipcare', name: 'Lip Care & Makeup', slug: 'Lip Care & Makeup', badge: 'Trending', active: true, order: 3 },
+  { id: 'cat-suncare', name: 'Sun Care', slug: 'Sun Care', badge: 'SPF 50+', active: true, order: 4 },
+  { id: 'cat-facemakeup', name: 'Face Makeup', slug: 'Face Makeup', active: true, order: 5 },
+  { id: 'cat-cleansers', name: 'Cleansers', slug: 'Cleansers', badge: 'Clean', active: true, order: 6 },
+];
 
 export const DEFAULT_SOCIAL_LINKS: SocialLink[] = [
   { id: 'social-ig', platform: 'instagram', label: 'Instagram', url: 'https://instagram.com/auraluxe.official', active: true },
@@ -197,6 +246,37 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
 
   // Social Links JSON
   social_links_json: JSON.stringify(DEFAULT_SOCIAL_LINKS),
+
+  // Navbar Categories JSON
+  navbar_categories_json: JSON.stringify(DEFAULT_NAVBAR_CATEGORIES),
+
+  // PLP Defaults
+  plp_show_badges: 'true',
+  plp_show_rating: 'true',
+  plp_show_volume_pill: 'true',
+  plp_show_stock_badge: 'true',
+  plp_show_quick_preview: 'true',
+  plp_hover_slideshow: 'true',
+  plp_hover_slideshow_timer: '1.5',
+  plp_show_share_button: 'true',
+  plp_show_category_pills: 'true',
+  plp_show_recently_viewed: 'true',
+
+  // PDP Defaults
+  pdp_show_volume_selector: 'true',
+  pdp_show_whatsapp_share: 'true',
+  pdp_show_direct_share: 'true',
+  pdp_show_peta_cruelty_free_badge: 'true',
+  pdp_show_dermatologist_tested_badge: 'true',
+  pdp_show_clean_actives_badge: 'true',
+  pdp_show_quantity_selector: 'true',
+  pdp_show_instant_buy_now: 'true',
+  pdp_show_reviews_section: 'true',
+  pdp_show_ingredients_accordion: 'true',
+  pdp_show_how_to_use_accordion: 'true',
+  pdp_show_delivery_estimator: 'true',
+  pdp_show_related_products: 'true',
+  pdp_show_recently_viewed: 'true',
 };
 
 const STORAGE_KEY = 'aura_luxe_site_settings';
@@ -206,6 +286,7 @@ interface SettingsContextType {
   settings: SiteSettings;
   customPolicies: CustomPolicy[];
   socialLinks: SocialLink[];
+  navbarCategories: NavbarCategory[];
   updateSetting: (key: keyof SiteSettings | string, value: string) => void;
   updateMultipleSettings: (patch: Partial<SiteSettings>) => void;
   saveSettingsToBackend: (overrideSettings?: SiteSettings) => Promise<boolean>;
@@ -216,6 +297,10 @@ interface SettingsContextType {
   addSocialLink: (link: Omit<SocialLink, 'id'>) => Promise<boolean>;
   updateSocialLink: (id: string, updated: Partial<SocialLink>) => Promise<boolean>;
   deleteSocialLink: (id: string) => Promise<boolean>;
+  addNavbarCategory: (cat: Omit<NavbarCategory, 'id'>) => Promise<boolean>;
+  updateNavbarCategory: (id: string, updated: Partial<NavbarCategory>) => Promise<boolean>;
+  deleteNavbarCategory: (id: string) => Promise<boolean>;
+  reorderNavbarCategories: (categories: NavbarCategory[]) => Promise<boolean>;
   isLoading: boolean;
   isSaving: boolean;
   refreshSettings: () => Promise<void>;
@@ -264,6 +349,19 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
     return DEFAULT_SOCIAL_LINKS;
   }, [settings.social_links_json]);
+
+  // Derived Navbar Categories list from JSON
+  const navbarCategories = useMemo<NavbarCategory[]>(() => {
+    try {
+      if (settings.navbar_categories_json) {
+        const parsed = JSON.parse(settings.navbar_categories_json);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Failed to parse navbar_categories_json', e);
+    }
+    return DEFAULT_NAVBAR_CATEGORIES;
+  }, [settings.navbar_categories_json]);
 
   // Fetch live settings from backend on mount
   const refreshSettings = useCallback(async () => {
@@ -403,12 +501,55 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return await saveSettingsToBackend(updatedSettings);
   }, [socialLinks, settings, saveSettingsToBackend]);
 
+  // Add new Navbar Category
+  const addNavbarCategory = useCallback(async (cat: Omit<NavbarCategory, 'id'>): Promise<boolean> => {
+    const newCat: NavbarCategory = {
+      ...cat,
+      id: `cat-${Date.now()}`,
+      active: cat.active ?? true,
+      order: navbarCategories.length + 1,
+    };
+    const updatedList = [...navbarCategories, newCat];
+    const newJson = JSON.stringify(updatedList);
+    const updatedSettings = { ...settings, navbar_categories_json: newJson };
+    setSettings(updatedSettings);
+    return await saveSettingsToBackend(updatedSettings);
+  }, [navbarCategories, settings, saveSettingsToBackend]);
+
+  // Update existing Navbar Category
+  const updateNavbarCategory = useCallback(async (id: string, updated: Partial<NavbarCategory>): Promise<boolean> => {
+    const updatedList = navbarCategories.map((c) => (c.id === id ? { ...c, ...updated } : c));
+    const newJson = JSON.stringify(updatedList);
+    const updatedSettings = { ...settings, navbar_categories_json: newJson };
+    setSettings(updatedSettings);
+    return await saveSettingsToBackend(updatedSettings);
+  }, [navbarCategories, settings, saveSettingsToBackend]);
+
+  // Delete Navbar Category
+  const deleteNavbarCategory = useCallback(async (id: string): Promise<boolean> => {
+    const updatedList = navbarCategories.filter((c) => c.id !== id);
+    const newJson = JSON.stringify(updatedList);
+    const updatedSettings = { ...settings, navbar_categories_json: newJson };
+    setSettings(updatedSettings);
+    return await saveSettingsToBackend(updatedSettings);
+  }, [navbarCategories, settings, saveSettingsToBackend]);
+
+  // Reorder Navbar Categories
+  const reorderNavbarCategories = useCallback(async (categories: NavbarCategory[]): Promise<boolean> => {
+    const indexed = categories.map((c, idx) => ({ ...c, order: idx + 1 }));
+    const newJson = JSON.stringify(indexed);
+    const updatedSettings = { ...settings, navbar_categories_json: newJson };
+    setSettings(updatedSettings);
+    return await saveSettingsToBackend(updatedSettings);
+  }, [settings, saveSettingsToBackend]);
+
   return (
     <SettingsContext.Provider
       value={{
         settings,
         customPolicies,
         socialLinks,
+        navbarCategories,
         updateSetting,
         updateMultipleSettings,
         saveSettingsToBackend,
@@ -419,6 +560,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         addSocialLink,
         updateSocialLink,
         deleteSocialLink,
+        addNavbarCategory,
+        updateNavbarCategory,
+        deleteNavbarCategory,
+        reorderNavbarCategories,
         isLoading,
         isSaving,
         refreshSettings,

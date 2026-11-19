@@ -127,6 +127,40 @@ public class DataInitializer implements CommandLineRunner {
             }
             log.info("Seeded initial default Site & Policy settings (total: " + defaults.size() + ")");
         }
+
+        // Ensure PLP, PDP and Navbar category settings exist
+        String[][] essentialSettings = {
+                {"plp_show_badges", "true"},
+                {"plp_show_rating", "true"},
+                {"plp_show_volume_pill", "true"},
+                {"plp_show_stock_badge", "true"},
+                {"plp_show_quick_preview", "true"},
+                {"plp_hover_slideshow", "true"},
+                {"plp_hover_slideshow_timer", "1.5"},
+                {"plp_show_share_button", "true"},
+                {"plp_show_category_pills", "true"},
+                {"plp_show_recently_viewed", "true"},
+                {"pdp_show_volume_selector", "true"},
+                {"pdp_show_whatsapp_share", "true"},
+                {"pdp_show_direct_share", "true"},
+                {"pdp_show_peta_cruelty_free_badge", "true"},
+                {"pdp_show_dermatologist_tested_badge", "true"},
+                {"pdp_show_clean_actives_badge", "true"},
+                {"pdp_show_quantity_selector", "true"},
+                {"pdp_show_instant_buy_now", "true"},
+                {"pdp_show_reviews_section", "true"},
+                {"pdp_show_ingredients_accordion", "true"},
+                {"pdp_show_how_to_use_accordion", "true"},
+                {"pdp_show_delivery_estimator", "true"},
+                {"pdp_show_related_products", "true"},
+                {"pdp_show_recently_viewed", "true"},
+                {"navbar_categories_json", "[{\"id\":\"serums\",\"name\":\"Serums & Treatments\",\"slug\":\"Serums & Treatments\",\"badge\":\"Best Seller\",\"active\":true},{\"id\":\"moisturizers\",\"name\":\"Moisturizers\",\"slug\":\"Moisturizers\",\"active\":true},{\"id\":\"lipcare\",\"name\":\"Lip Care & Makeup\",\"slug\":\"Lip Care & Makeup\",\"badge\":\"Trending\",\"active\":true},{\"id\":\"suncare\",\"name\":\"Sun Care\",\"slug\":\"Sun Care\",\"badge\":\"SPF 50+\",\"active\":true},{\"id\":\"facemakeup\",\"name\":\"Face Makeup\",\"slug\":\"Face Makeup\",\"active\":true},{\"id\":\"cleansers\",\"name\":\"Cleansers\",\"slug\":\"Cleansers\",\"badge\":\"Clean\",\"active\":true}]"}
+        };
+        for (String[] pair : essentialSettings) {
+            if (!siteSettingRepository.existsById(pair[0])) {
+                siteSettingRepository.save(new com.daivatech.ecommerce.entity.SiteSetting(pair[0], pair[1]));
+            }
+        }
     }
 
     private void seedDefaultAddresses() {
@@ -477,6 +511,20 @@ public class DataInitializer implements CommandLineRunner {
             if ((p.getZohoItemId() == null || p.getZohoItemId().isBlank()) && skuToZoho.containsKey(p.getSku())) {
                 p.setZohoItemId(skuToZoho.get(p.getSku()));
                 changed = true;
+            }
+
+            // Seed sample size/volume variants if not yet set
+            if (p.getVariantsJson() == null || p.getVariantsJson().isBlank()) {
+                if ("LUM-SER-001".equalsIgnoreCase(p.getSku())) {
+                    p.setVariantsJson("[{\"size\":\"10ml\",\"label\":\"10ml Travel Vial\",\"price\":449,\"originalPrice\":599,\"stock\":25,\"sku\":\"LUM-SER-001-10ML\"},{\"size\":\"30ml\",\"label\":\"30ml Standard Bottle\",\"price\":899,\"originalPrice\":1299,\"stock\":45,\"sku\":\"LUM-SER-001\"},{\"size\":\"50ml\",\"label\":\"50ml Value Size\",\"price\":1399,\"originalPrice\":1899,\"stock\":30,\"sku\":\"LUM-SER-001-50ML\"}]");
+                    changed = true;
+                } else if ("RPS-CRM-003".equalsIgnoreCase(p.getSku())) {
+                    p.setVariantsJson("[{\"size\":\"30g\",\"label\":\"30g Travel Mini\",\"price\":649,\"originalPrice\":899,\"stock\":20,\"sku\":\"RPS-CRM-003-30G\"},{\"size\":\"50g\",\"label\":\"50g Full Jar\",\"price\":1099,\"originalPrice\":1499,\"stock\":38,\"sku\":\"RPS-CRM-003\"},{\"size\":\"100g\",\"label\":\"100g Mega Jar\",\"price\":1899,\"originalPrice\":2499,\"stock\":15,\"sku\":\"RPS-CRM-003-100G\"}]");
+                    changed = true;
+                } else if ("MIS-SPF-005".equalsIgnoreCase(p.getSku())) {
+                    p.setVariantsJson("[{\"size\":\"50ml\",\"label\":\"50ml Pocket Tube\",\"price\":699,\"originalPrice\":899,\"stock\":50,\"sku\":\"MIS-SPF-005\"},{\"size\":\"100ml\",\"label\":\"100ml Duo Pack\",\"price\":1199,\"originalPrice\":1599,\"stock\":25,\"sku\":\"MIS-SPF-005-100ML\"}]");
+                    changed = true;
+                }
             }
         }
         if (changed) {
