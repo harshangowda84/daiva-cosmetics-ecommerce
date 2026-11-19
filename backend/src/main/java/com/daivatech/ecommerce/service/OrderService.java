@@ -35,6 +35,7 @@ public class OrderService {
     private final XpressBeesService xpressBeesService;
     private final com.daivatech.ecommerce.repository.OrderReturnExchangeRepository returnExchangeRepository;
     private final com.daivatech.ecommerce.repository.UserAddressRepository userAddressRepository;
+    private final EmailService emailService;
 
     public OrderService(CustomerOrderRepository orderRepository,
                         ProductRepository productRepository,
@@ -45,7 +46,8 @@ public class OrderService {
                         RazorpayService razorpayService,
                         XpressBeesService xpressBeesService,
                         com.daivatech.ecommerce.repository.OrderReturnExchangeRepository returnExchangeRepository,
-                        com.daivatech.ecommerce.repository.UserAddressRepository userAddressRepository) {
+                        com.daivatech.ecommerce.repository.UserAddressRepository userAddressRepository,
+                        EmailService emailService) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.zohoInventoryService = zohoInventoryService;
@@ -56,6 +58,7 @@ public class OrderService {
         this.xpressBeesService = xpressBeesService;
         this.returnExchangeRepository = returnExchangeRepository;
         this.userAddressRepository = userAddressRepository;
+        this.emailService = emailService;
     }
 
     @Transactional
@@ -199,7 +202,13 @@ public class OrderService {
             savedOrder.setZohoErrorMessage(e.getMessage());
         }
 
-        return orderRepository.save(savedOrder);
+        CustomerOrder finalOrder = orderRepository.save(savedOrder);
+        try {
+            emailService.sendOrderConfirmationEmail(finalOrder);
+        } catch (Exception e) {
+            log.warn("Could not trigger confirmation email for order {}: {}", finalOrder.getOrderNumber(), e.getMessage());
+        }
+        return finalOrder;
     }
 
     public List<CustomerOrder> getAllOrders() {

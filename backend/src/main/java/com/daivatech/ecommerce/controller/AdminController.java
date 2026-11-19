@@ -27,6 +27,7 @@ public class AdminController {
     private final ImageStorageService imageStorageService;
     private final StockMovementService stockMovementService;
     private final BatchStockService batchStockService;
+    private final com.daivatech.ecommerce.service.EmailService emailService;
 
     public AdminController(ProductRepository productRepository,
                            ProductService productService,
@@ -35,7 +36,8 @@ public class AdminController {
                            ZohoInventoryService zohoInventoryService,
                            ImageStorageService imageStorageService,
                            StockMovementService stockMovementService,
-                           BatchStockService batchStockService) {
+                           BatchStockService batchStockService,
+                           com.daivatech.ecommerce.service.EmailService emailService) {
         this.productRepository = productRepository;
         this.productService = productService;
         this.orderService = orderService;
@@ -44,6 +46,7 @@ public class AdminController {
         this.imageStorageService = imageStorageService;
         this.stockMovementService = stockMovementService;
         this.batchStockService = batchStockService;
+        this.emailService = emailService;
     }
 
     @GetMapping("/products")
@@ -725,5 +728,30 @@ public class AdminController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
+    }
+
+    @GetMapping("/email/status")
+    public ResponseEntity<?> getEmailStatus() {
+        return ResponseEntity.ok(emailService.getStatus());
+    }
+
+    @GetMapping("/email/logs")
+    public ResponseEntity<?> getEmailLogs() {
+        return ResponseEntity.ok(emailService.getRecentLogs());
+    }
+
+    @PostMapping("/email/test")
+    public ResponseEntity<?> sendTestEmail(@RequestBody Map<String, String> payload) {
+        String recipient = payload.get("email");
+        String type = payload.getOrDefault("type", "GENERAL");
+        if (recipient == null || recipient.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Recipient email address is required"));
+        }
+        boolean sent = emailService.sendTestEmail(recipient, type);
+        return ResponseEntity.ok(Map.of(
+                "success", sent,
+                "message", "Test email processed for " + recipient + " (Type: " + type + ")",
+                "status", emailService.getStatus()
+        ));
     }
 }

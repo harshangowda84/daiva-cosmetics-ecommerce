@@ -12,9 +12,11 @@ import java.util.UUID;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final EmailService emailService;
 
-    public AuthService(UserRepository userRepository) {
+    public AuthService(UserRepository userRepository, EmailService emailService) {
         this.userRepository = userRepository;
+        this.emailService = emailService;
     }
 
     public AuthDtos.AuthResponse register(AuthDtos.RegisterRequest request) {
@@ -30,6 +32,7 @@ public class AuthService {
         );
         user.setRole("CUSTOMER");
         User saved = userRepository.save(user);
+        emailService.sendWelcomeEmail(saved);
 
         String mockToken = "jwt_" + UUID.randomUUID().toString().replace("-", "");
         return new AuthDtos.AuthResponse(
@@ -107,6 +110,7 @@ public class AuthService {
             user.setGoogleSub(request.getGoogleSub());
             user.setProfilePictureUrl(request.getProfilePictureUrl());
             user = userRepository.save(user);
+            emailService.sendWelcomeEmail(user);
         }
 
         String mockToken = "jwt_google_" + UUID.randomUUID().toString().replace("-", "");
@@ -159,6 +163,7 @@ public class AuthService {
                 user.setAppleSub(request.getAppleSub());
             }
             user = userRepository.save(user);
+            emailService.sendWelcomeEmail(user);
         }
 
         String mockToken = "jwt_apple_" + UUID.randomUUID().toString().replace("-", "");

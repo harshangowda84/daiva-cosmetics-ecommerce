@@ -20,13 +20,16 @@ public class ShippingController {
     private final XpressBeesService xpressBeesService;
     private final CustomerOrderRepository orderRepository;
     private final OrderReturnExchangeRepository returnExchangeRepository;
+    private final com.daivatech.ecommerce.service.EmailService emailService;
 
     public ShippingController(XpressBeesService xpressBeesService,
                               CustomerOrderRepository orderRepository,
-                              OrderReturnExchangeRepository returnExchangeRepository) {
+                              OrderReturnExchangeRepository returnExchangeRepository,
+                              com.daivatech.ecommerce.service.EmailService emailService) {
         this.xpressBeesService = xpressBeesService;
         this.orderRepository = orderRepository;
         this.returnExchangeRepository = returnExchangeRepository;
+        this.emailService = emailService;
     }
 
     /**
@@ -66,6 +69,11 @@ public class ShippingController {
             order.setOrderStatus("SHIPPED");
 
             CustomerOrder savedOrder = orderRepository.save(order);
+            try {
+                emailService.sendShippingUpdateEmail(savedOrder, awb, courierName != null ? courierName : "Xpressbees");
+            } catch (Exception ex) {
+                // Non-blocking
+            }
             return ResponseEntity.ok(savedOrder);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage() != null ? e.getMessage() : "Failed to manifest shipment with Xpressbees"));
