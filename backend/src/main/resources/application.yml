@@ -42,7 +42,7 @@ spring:
 
 app:
   mail:
-    enabled: ${APP_MAIL_ENABLED:true}
+    enabled: ${APP_MAIL_ENABLED:false}
     from: ${APP_MAIL_FROM:concierge@auraluxe.com}
     from-name: ${APP_MAIL_FROM_NAME:Aura Luxe Paris}
 
