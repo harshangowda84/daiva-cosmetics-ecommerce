@@ -123,7 +123,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
             onClose();
           }}
           type="button"
-          className="absolute top-3.5 right-3.5 z-20 w-8 h-8 rounded-full bg-white/80 dark:bg-[#201813]/80 hover:bg-white dark:hover:bg-[#2C211A] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-[#EDE4DA] flex items-center justify-center shadow-xs border border-neutral-200/60 dark:border-[#2C211A] transition"
+          className="absolute top-4 right-4 z-30 w-8 h-8 rounded-full bg-white/95 dark:bg-[#201813]/95 hover:bg-neutral-100 dark:hover:bg-[#2C211A] text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-[#EDE4DA] flex items-center justify-center shadow-sm border border-neutral-200/80 dark:border-[#2C211A] transition"
           title="Close quick view"
         >
           <X className="w-4 h-4" />
@@ -194,13 +194,13 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
         <div className="md:w-1/2 p-5 sm:p-6 flex flex-col justify-between overflow-y-auto space-y-4">
           <div className="space-y-3">
             {/* Brand & Subcategory */}
-            <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+            <div className="flex items-center justify-between text-[11px] uppercase tracking-wider text-neutral-400 dark:text-neutral-500 pr-10">
               <span className="font-bold text-rose-700 dark:text-rose-400">{product.brand}</span>
-              <span>{product.subCategory}</span>
+              <span className="truncate max-w-[140px] text-right">{product.subCategory}</span>
             </div>
 
             {/* Title */}
-            <h3 className="font-serif text-lg sm:text-xl font-medium leading-snug text-neutral-900 dark:text-[#EDE4DA]">
+            <h3 className="font-serif text-lg sm:text-xl font-medium leading-snug text-neutral-900 dark:text-[#EDE4DA] pr-8">
               {product.name}
             </h3>
 
