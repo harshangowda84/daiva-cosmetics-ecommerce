@@ -6,6 +6,7 @@ import { useWishlist } from '../context/WishlistContext';
 import { useSettings } from '../context/SettingsContext';
 import { getFullImageUrl, handleImageError } from '../utils/image';
 import { ShareProductModal } from './ShareProductModal';
+import { QuickViewModal } from './QuickViewModal';
 
 interface ProductCardProps {
   product: Product;
@@ -21,6 +22,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
   const [pulse, setPulse] = useState(false);
   const [heartPop, setHeartPop] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
 
   // PLP Settings Switches
   const showBadges = settings.plp_show_badges !== 'false';
@@ -218,7 +220,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onNavigate('pdp', product.slug);
+                setIsQuickViewOpen(true);
               }}
               className="w-7 h-7 rounded-full bg-white/85 dark:bg-[#1A1410]/85 text-neutral-600 dark:text-neutral-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-white dark:hover:bg-[#251D18] flex items-center justify-center shadow-xs border border-white/60 dark:border-[#2C211A] transition select-none"
               title="Quick peek cosmetic details"
@@ -367,6 +369,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
           product={product}
           isOpen={isShareOpen}
           onClose={() => setIsShareOpen(false)}
+        />
+      )}
+
+      {/* On-Page Quick View Modal */}
+      {isQuickViewOpen && (
+        <QuickViewModal
+          product={product}
+          isOpen={isQuickViewOpen}
+          onClose={() => setIsQuickViewOpen(false)}
+          onNavigate={onNavigate}
         />
       )}
     </div>
