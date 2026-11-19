@@ -794,6 +794,48 @@ export const api = {
     return fallbackUser;
   },
 
+  // Apple OAuth Auth API
+  async appleAuth(data: { email: string; fullName?: string; appleSub?: string; identityToken?: string }): Promise<import('../types').User> {
+    try {
+      const res = await fetch(`${BASE_URL}/auth/apple`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+      if (res.status === 404) {
+        console.warn('Backend /auth/apple endpoint returned 404. Using client-side session fallback.');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Apple authentication failed (${res.status})`);
+      }
+    } catch (err: any) {
+      if (!err.message?.includes('404') && !err.message?.includes('Failed to fetch')) {
+        throw err;
+      }
+    }
+
+    const fallbackUser: import('../types').User = {
+      id: Date.now(),
+      fullName: data.fullName || 'Apple Member',
+      email: data.email,
+      phone: '',
+      addressLine1: '',
+      addressLine2: '',
+      city: '',
+      state: '',
+      pincode: '',
+      country: 'India',
+      role: 'CUSTOMER',
+      authProvider: 'APPLE',
+      appleSub: data.appleSub || `apple_sub_${Date.now()}`,
+    };
+    sessionStorage.setItem('aura_customer_session', JSON.stringify(fallbackUser));
+    return fallbackUser;
+  },
+
   // Xpressbees Logistics APIs
   async checkPincodeServiceability(pincode: string): Promise<import('../types').ShippingServiceability> {
     const res = await fetch(`${BASE_URL}/shipping/serviceability?pincode=${encodeURIComponent(pincode)}`);

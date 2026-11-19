@@ -49,6 +49,16 @@ public class AuthController {
         }
     }
 
+    @PostMapping("/apple")
+    public ResponseEntity<?> appleAuth(@RequestBody AuthDtos.AppleAuthRequest request) {
+        try {
+            AuthDtos.AuthResponse response = authService.appleAuth(request);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @GetMapping("/profile/{id}")
     public ResponseEntity<?> getProfile(@PathVariable Long id) {
         try {

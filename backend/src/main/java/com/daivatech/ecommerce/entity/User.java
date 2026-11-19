@@ -31,8 +31,9 @@ public class User {
 
     private String role = "CUSTOMER"; // "CUSTOMER" or "ADMIN"
 
-    private String authProvider = "LOCAL"; // "LOCAL" or "GOOGLE"
+    private String authProvider = "LOCAL"; // "LOCAL", "GOOGLE", or "APPLE"
     private String googleSub;
+    private String appleSub;
     private String profilePictureUrl;
 
     private String zohoContactId;
@@ -90,6 +91,9 @@ public class User {
 
     public String getGoogleSub() { return googleSub; }
     public void setGoogleSub(String googleSub) { this.googleSub = googleSub; }
+
+    public String getAppleSub() { return appleSub; }
+    public void setAppleSub(String appleSub) { this.appleSub = appleSub; }
 
     public String getProfilePictureUrl() { return profilePictureUrl; }
     public void setProfilePictureUrl(String profilePictureUrl) { this.profilePictureUrl = profilePictureUrl; }

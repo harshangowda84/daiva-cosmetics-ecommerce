@@ -26,6 +26,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<User>;
   register: (fullName: string, email: string, password: string, phone?: string) => Promise<User>;
   loginWithGoogle: (googleData: { email: string; fullName?: string; googleSub?: string; profilePictureUrl?: string }) => Promise<User>;
+  loginWithApple: (appleData: { email: string; fullName?: string; appleSub?: string; identityToken?: string }) => Promise<User>;
   logout: () => void;
   updateUser: (updated: Partial<User>) => Promise<User>;
   refreshUser: () => Promise<User | null>;
@@ -174,6 +175,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return combined;
   };
 
+  const loginWithApple = async (appleData: { email: string; fullName?: string; appleSub?: string; identityToken?: string }) => {
+    const res = await api.appleAuth(appleData);
+    let combined = res;
+    try {
+      const fullProfile = await api.getProfile(res.id);
+      if (fullProfile.email?.trim().toLowerCase() === res.email?.trim().toLowerCase()) {
+        combined = { ...res, ...fullProfile };
+      }
+    } catch {}
+    setUser(combined);
+    sessionStorage.setItem('aura_customer_session', JSON.stringify(combined));
+    return combined;
+  };
+
   const logout = () => {
     try {
       sessionStorage.removeItem('aura_customer_session');
@@ -216,6 +231,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         register,
         loginWithGoogle,
+        loginWithApple,
         logout,
         updateUser,
         refreshUser,

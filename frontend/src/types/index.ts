@@ -61,6 +61,7 @@ export interface User {
   authProvider?: string;
   profilePictureUrl?: string;
   googleSub?: string;
+  appleSub?: string;
 }
 
 export interface UserAddress {
