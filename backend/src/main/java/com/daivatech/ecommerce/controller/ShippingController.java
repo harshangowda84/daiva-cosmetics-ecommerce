@@ -85,13 +85,21 @@ public class ShippingController {
         }
 
         Map<String, Object> trackInfo = new java.util.HashMap<>(xpressBeesService.trackShipment(order));
+        trackInfo.put("orderStatus", order.getOrderStatus());
+        trackInfo.put("courierStatus", order.getCourierStatus());
+        trackInfo.put("paymentStatus", order.getPaymentStatus());
+        if (order.getDeliveredAt() != null) {
+            trackInfo.put("deliveredAt", order.getDeliveredAt().toString());
+        }
 
-        // Attach reverse pickup tracking if return or exchange exists (Amazon reference workflow)
+        // Attach reverse pickup tracking if active return or exchange exists (Amazon reference workflow)
         java.util.List<OrderReturnExchange> returns = returnExchangeRepository.findByOrderIdOrderByCreatedAtDesc(orderId);
         if (!returns.isEmpty()) {
             OrderReturnExchange latestReturn = returns.get(0);
-            Map<String, Object> returnTrack = xpressBeesService.trackReversePickup(latestReturn, order);
-            trackInfo.put("returnExchangeTracking", returnTrack);
+            if (!"RETURN_CANCELLED".equalsIgnoreCase(latestReturn.getStatus()) && !"CANCELLED".equalsIgnoreCase(latestReturn.getStatus())) {
+                Map<String, Object> returnTrack = xpressBeesService.trackReversePickup(latestReturn, order);
+                trackInfo.put("returnExchangeTracking", returnTrack);
+            }
         }
 
         return ResponseEntity.ok(trackInfo);

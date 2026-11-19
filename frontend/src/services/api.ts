@@ -1,5 +1,6 @@
 import {
   Product,
+  CartItem,
   CustomerOrder,
   ZohoStatus,
   User,
@@ -601,6 +602,33 @@ export const api = {
     return res.json();
   },
 
+  async retryOrderDelivery(orderId: number): Promise<CustomerOrder> {
+    const res = await fetch(`${BASE_URL}/admin/orders/${orderId}/retry-delivery`, {
+      method: 'POST',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to retry delivery');
+    }
+    return res.json();
+  },
+
+  async updateOrderAddress(
+    orderId: number,
+    address: { addressLine?: string; city?: string; state?: string; pincode?: string }
+  ): Promise<CustomerOrder> {
+    const res = await fetch(`${BASE_URL}/orders/${orderId}/address`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(address),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to update delivery address');
+    }
+    return res.json();
+  },
+
   // Requirement 6 & 7: Return and Exchange APIs
   async requestReturnOrExchange(orderId: number, data: {
     userId?: number;
@@ -661,6 +689,31 @@ export const api = {
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.error || 'Failed to simulate return status');
+    }
+    return res.json();
+  },
+
+  async failReturnPickup(returnId: number, reasonCode: string, notes?: string): Promise<import('../types').OrderReturnExchange> {
+    const res = await fetch(`${BASE_URL}/admin/returns/${returnId}/fail-pickup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reasonCode, notes }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to record return pickup failure');
+    }
+    return res.json();
+  },
+
+  async retryReturnPickup(returnId: number): Promise<import('../types').OrderReturnExchange> {
+    const res = await fetch(`${BASE_URL}/admin/returns/${returnId}/retry-pickup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to retry return pickup');
     }
     return res.json();
   },
@@ -935,5 +988,101 @@ export const api = {
     if (!res.ok) {
       throw new Error('Failed to clear browsing history');
     }
+  },
+
+  // Customer Cart APIs
+  async getUserCart(userId: number): Promise<CartItem[]> {
+    const res = await fetch(`${BASE_URL}/cart/${userId}`);
+    if (!res.ok) {
+      throw new Error('Failed to fetch user cart');
+    }
+    return res.json();
+  },
+
+  async addToCart(
+    userId: number,
+    productId: number,
+    quantity: number = 1,
+    selected: boolean = true,
+    fromWishlist: boolean = false
+  ): Promise<CartItem> {
+    const res = await fetch(`${BASE_URL}/cart/${userId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ productId, quantity, selected, fromWishlist }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to add item to cart');
+    }
+    return res.json();
+  },
+
+  async updateCartItem(
+    userId: number,
+    productId: number,
+    payload: { quantity?: number; selected?: boolean }
+  ): Promise<CartItem> {
+    const res = await fetch(`${BASE_URL}/cart/${userId}/item/${productId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to update cart item');
+    }
+    return res.json();
+  },
+
+  async selectAllCartItems(userId: number, selected: boolean): Promise<CartItem[]> {
+    const res = await fetch(`${BASE_URL}/cart/${userId}/select-all`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selected }),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to update cart items selection');
+    }
+    return res.json();
+  },
+
+  async removeFromCart(userId: number, productId: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/cart/${userId}/item/${productId}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      throw new Error('Failed to remove item from cart');
+    }
+  },
+
+  async clearUserCart(userId: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/cart/${userId}/clear`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      throw new Error('Failed to clear cart');
+    }
+  },
+
+  async clearSelectedCartItems(userId: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/cart/${userId}/clear-selected`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      throw new Error('Failed to clear selected cart items');
+    }
+  },
+
+  async mergeGuestCart(userId: number, guestItems: any[]): Promise<CartItem[]> {
+    const res = await fetch(`${BASE_URL}/cart/${userId}/merge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(guestItems),
+    });
+    if (!res.ok) {
+      throw new Error('Failed to merge guest cart');
+    }
+    return res.json();
   },
 };

@@ -74,6 +74,51 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
   const [cancellationNotes, setCancellationNotes] = useState<string>('');
   const [submittingCancellation, setSubmittingCancellation] = useState<boolean>(false);
 
+  // NDR Incomplete Address Edit Modal State
+  const [editingOrderAddress, setEditingOrderAddress] = useState<CustomerOrder | null>(null);
+  const [orderAddrLine, setOrderAddrLine] = useState('');
+  const [orderCity, setOrderCity] = useState('');
+  const [orderState, setOrderState] = useState('');
+  const [orderPincode, setOrderPincode] = useState('');
+  const [savingOrderAddress, setSavingOrderAddress] = useState(false);
+
+  const handleOpenEditOrderAddress = (order: CustomerOrder) => {
+    setEditingOrderAddress(order);
+    setOrderAddrLine(order.addressLine || '');
+    setOrderCity(order.city || '');
+    setOrderState(order.state || '');
+    setOrderPincode(order.pincode || '');
+  };
+
+  const handleSaveOrderAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingOrderAddress) return;
+    if (!orderAddrLine.trim() || !orderCity.trim() || !orderPincode.trim()) {
+      alert('Please fill in complete address line, city, and pincode.');
+      return;
+    }
+    setSavingOrderAddress(true);
+    try {
+      const updated = await api.updateOrderAddress(editingOrderAddress.id, {
+        addressLine: orderAddrLine.trim(),
+        city: orderCity.trim(),
+        state: orderState.trim(),
+        pincode: orderPincode.trim(),
+      });
+      setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+      try {
+        const freshTrack = await api.trackOrderShipment(updated.id);
+        setTrackingMap((prev) => ({ ...prev, [updated.id]: freshTrack }));
+      } catch {}
+      alert('Delivery address updated successfully! Courier has been notified to re-route your delivery.');
+      setEditingOrderAddress(null);
+    } catch (err: any) {
+      alert(err.message || 'Failed to update delivery address');
+    } finally {
+      setSavingOrderAddress(false);
+    }
+  };
+
   useEffect(() => {
     api.getProducts().then((prods) => setCatalogProducts(prods)).catch(() => {});
   }, []);
@@ -158,6 +203,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
       try {
         const data = await api.trackOrderShipment(order.id);
         setTrackingMap((prev) => ({ ...prev, [order.id]: data }));
+        if (data.orderStatus || data.courierStatus || data.paymentStatus) {
+          setOrders((prev) =>
+            prev.map((o) => {
+              if (o.id === order.id) {
+                return {
+                  ...o,
+                  orderStatus: data.orderStatus || o.orderStatus,
+                  courierStatus: data.courierStatus || o.courierStatus,
+                  paymentStatus: data.paymentStatus || o.paymentStatus,
+                  deliveredAt: data.deliveredAt || o.deliveredAt,
+                };
+              }
+              return o;
+            })
+          );
+        }
       } catch (e) {
         console.error('Failed to fetch tracking data', e);
       } finally {
@@ -171,6 +232,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
     try {
       const data = await api.trackOrderShipment(orderId);
       setTrackingMap((prev) => ({ ...prev, [orderId]: data }));
+      if (data.orderStatus || data.courierStatus || data.paymentStatus) {
+        setOrders((prev) =>
+          prev.map((o) => {
+            if (o.id === orderId) {
+              return {
+                ...o,
+                orderStatus: data.orderStatus || o.orderStatus,
+                courierStatus: data.courierStatus || o.courierStatus,
+                paymentStatus: data.paymentStatus || o.paymentStatus,
+                deliveredAt: data.deliveredAt || o.deliveredAt,
+              };
+            }
+            return o;
+          })
+        );
+      }
     } catch (e) {
       console.error('Failed to refresh tracking data', e);
     } finally {
@@ -344,14 +421,76 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
   const [addrSaving, setAddrSaving] = useState(false);
   const [addrError, setAddrError] = useState('');
 
+  // Edit Profile Modal State
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  const handleOpenEditProfile = () => {
+    if (!user) return;
+    setEditName(user.fullName || '');
+    setEditPhone(user.phone || '');
+    setEditError('');
+    setIsEditProfileOpen(true);
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editName.trim()) {
+      setEditError('Full name is required.');
+      return;
+    }
+    try {
+      setEditSaving(true);
+      setEditError('');
+      await updateUser({
+        fullName: editName.trim(),
+        phone: editPhone.trim(),
+      });
+      setIsEditProfileOpen(false);
+    } catch (err: any) {
+      setEditError(err.message || 'Failed to update profile.');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  // If user has orders with an address, but 0 saved addresses in profile, automatically import from the order
+  const syncAddressFromOrders = async (userOrders: CustomerOrder[]) => {
+    if (!user?.id || userOrders.length === 0) return;
+    const orderWithAddr = userOrders.find((o) => o.addressLine && o.city && o.pincode);
+    if (!orderWithAddr) return;
+
+    try {
+      await api.createUserAddress(user.id, {
+        addressType: 'HOME',
+        recipientName: orderWithAddr.customerName || user.fullName || 'Valued Customer',
+        phone: orderWithAddr.customerPhone || user.phone || '9900876787',
+        addressLine1: orderWithAddr.addressLine,
+        city: orderWithAddr.city,
+        state: orderWithAddr.state || 'Karnataka',
+        pincode: orderWithAddr.pincode,
+        isDefault: true,
+      });
+      const refreshed = await api.getUserAddresses(user.id);
+      setAddresses(refreshed);
+    } catch (e) {
+      console.warn('Auto address sync from order skipped', e);
+    }
+  };
+
   const fetchAddresses = async () => {
     if (!user?.id) return;
     try {
       setLoadingAddresses(true);
       const data = await api.getUserAddresses(user.id);
       setAddresses(data);
+      return data;
     } catch (e) {
       console.error('Failed to load user addresses', e);
+      return [];
     } finally {
       setLoadingAddresses(false);
     }
@@ -366,11 +505,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
     const fetchOrdersAndReviews = async () => {
       try {
         setLoading(true);
-        const [ordersData, userReviews] = await Promise.all([
+        const [ordersData, userReviews, userAddrs] = await Promise.all([
           api.getUserOrders(user.id),
           api.getUserReviews(user.id).catch(() => []),
+          api.getUserAddresses(user.id).catch(() => []),
         ]);
         setOrders(ordersData);
+        setAddresses(userAddrs);
+
+        if ((!userAddrs || userAddrs.length === 0) && ordersData.length > 0) {
+          syncAddressFromOrders(ordersData);
+        }
 
         const revMap: Record<number, ProductReview> = {};
         for (const r of userReviews) {
@@ -384,7 +529,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
       }
     };
     fetchOrdersAndReviews();
-    fetchAddresses();
   }, [user]);
 
   if (!user) return null;
@@ -518,14 +662,25 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
         {/* Left: Account & Saved Address (4 cols) */}
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-white dark:bg-[#1A1410] rounded-3xl p-6 border border-neutral-200 dark:border-[#2C211A] shadow-sm space-y-4">
-            <div className="flex items-center gap-3 pb-3 border-b border-neutral-100 dark:border-[#2C211A]">
-              <div className="w-10 h-10 rounded-full bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400 flex items-center justify-center">
-                <UserIcon className="w-5 h-5" />
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-[#2C211A]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400 flex items-center justify-center">
+                  <UserIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-base font-semibold text-neutral-900 dark:text-[#EDE4DA]">Personal Info</h3>
+                  <p className="text-xs text-neutral-400 dark:text-neutral-500">Account details</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-serif text-base font-semibold text-neutral-900 dark:text-[#EDE4DA]">Personal Info</h3>
-                <p className="text-xs text-neutral-400 dark:text-neutral-500">Account details</p>
-              </div>
+              <button
+                type="button"
+                onClick={handleOpenEditProfile}
+                className="px-3 py-1.5 rounded-full border border-neutral-200 dark:border-[#382B21] hover:bg-neutral-50 dark:hover:bg-[#251D18] text-rose-700 dark:text-rose-400 text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs cursor-pointer"
+                title="Edit Name and Phone"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Edit Profile</span>
+              </button>
             </div>
 
             <div className="text-xs space-y-2 text-neutral-600 dark:text-neutral-300">
@@ -747,27 +902,35 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                 const currentStage = getStageIndex(order, tracking);
                 const truckLeft = getTruckPosition(currentStage);
 
+                const isOrderDelivered = order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' || tracking?.currentStatus === 'DELIVERED' || tracking?.orderStatus === 'DELIVERED';
+                const isOrderCancelled = order.orderStatus === 'CANCELLED' || order.courierStatus === 'CANCELLED' || tracking?.currentStatus === 'CANCELLED' || tracking?.orderStatus === 'CANCELLED';
+
+                const effectiveOrderStatus = isOrderCancelled ? 'CANCELLED' : isOrderDelivered ? 'DELIVERED' : (tracking?.orderStatus || order.orderStatus);
+                const effectiveCourierStatus = isOrderCancelled ? 'CANCELLED' : isOrderDelivered ? 'DELIVERED' : (tracking?.courierStatus || tracking?.currentStatus || order.courierStatus);
+                const effectivePaymentStatus = (isOrderDelivered && (order.paymentMethod === 'COD' || order.paymentStatus === 'PAID')) ? 'PAID' : (tracking?.paymentStatus || order.paymentStatus);
+
                 const rawRetTrack = tracking?.returnExchangeTracking;
-                const hasReturnExchange = !!rawRetTrack || order.orderStatus === 'RETURN_REQUESTED' || order.orderStatus === 'EXCHANGE_REQUESTED' || order.orderStatus === 'RETURNED' || order.orderStatus === 'EXCHANGED';
-                const currentView = trackingViewMode[order.id] || (hasReturnExchange ? 'return' : 'forward');
+                const isReturnActive = !!rawRetTrack && rawRetTrack.currentStatus !== 'RETURN_CANCELLED' && rawRetTrack.currentStatus !== 'CANCELLED';
+                const hasReturnExchange = isReturnActive || order.orderStatus === 'RETURN_REQUESTED' || order.orderStatus === 'EXCHANGE_REQUESTED' || order.orderStatus === 'RETURNED' || order.orderStatus === 'EXCHANGED';
+                const currentView = hasReturnExchange ? (trackingViewMode[order.id] || 'return') : 'forward';
 
                 // Foolproof reverse logistics tracking object: fallback to default synthesized telemetry if network is pending
-                const retTrack: ReturnExchangeTrackingInfo | null = rawRetTrack || (hasReturnExchange ? {
-                  returnExchangeId: 0,
+                const retTrack: ReturnExchangeTrackingInfo | null = (isReturnActive ? rawRetTrack : null) || (hasReturnExchange ? {
+                  returnExchangeId: rawRetTrack?.returnExchangeId || 0,
                   orderId: order.id,
                   orderNumber: order.orderNumber,
-                  stageIndex: order.orderStatus === 'RETURNED' || order.orderStatus === 'EXCHANGED' ? 3 : 0,
-                  currentStatus: order.orderStatus === 'RETURNED' || order.orderStatus === 'EXCHANGED' ? 'COMPLETED' : 'REQUESTED',
-                  type: (order.orderStatus?.includes('EXCHANGE') ? 'EXCHANGE' : 'RETURN') as 'RETURN' | 'EXCHANGE',
-                  itemTitle: order.items?.[0]?.productName || 'Cosmetic item',
-                  awb: order.awbNumber ? `REV-${order.awbNumber}` : 'XB-REV-PENDING',
-                  trackingUrl: `https://shipmentv2.xpressbees.com/orders/tracking/${order.awbNumber || ''}`,
-                  pickupSlot: 'Tomorrow 10:00 AM - 02:00 PM',
-                  reasonCategory: 'DAMAGED_LEAKING',
-                  nextActionEstimate: order.orderStatus === 'RETURNED' ? 'Refund Credited' : 'Return initiated • Pickup scheduled for Doorstep Inspection',
-                  refundAmount: order.totalAmount,
-                  refundMode: (order.paymentMethod || '').toUpperCase() === 'COD' ? 'BANK_TRANSFER' : 'ORIGINAL_PAYMENT_MODE',
-                  milestones: [
+                  stageIndex: order.orderStatus === 'RETURNED' || order.orderStatus === 'EXCHANGED' ? 3 : (rawRetTrack?.stageIndex || 0),
+                  currentStatus: order.orderStatus === 'RETURNED' || order.orderStatus === 'EXCHANGED' ? 'COMPLETED' : (rawRetTrack?.currentStatus || 'REQUESTED'),
+                  type: (order.orderStatus?.includes('EXCHANGE') || rawRetTrack?.type === 'EXCHANGE' ? 'EXCHANGE' : 'RETURN') as 'RETURN' | 'EXCHANGE',
+                  itemTitle: rawRetTrack?.itemTitle || order.items?.[0]?.productName || 'Cosmetic item',
+                  awb: rawRetTrack?.awb || (order.awbNumber ? `REV-${order.awbNumber}` : 'XB-REV-PENDING'),
+                  trackingUrl: rawRetTrack?.trackingUrl || `https://shipmentv2.xpressbees.com/orders/tracking/${order.awbNumber || ''}`,
+                  pickupSlot: rawRetTrack?.pickupSlot || 'Tomorrow 10:00 AM - 02:00 PM',
+                  reasonCategory: rawRetTrack?.reasonCategory || 'DAMAGED_LEAKING',
+                  nextActionEstimate: order.orderStatus === 'RETURNED' ? 'Refund Credited' : (rawRetTrack?.nextActionEstimate || 'Return initiated • Pickup scheduled for Doorstep Inspection'),
+                  refundAmount: rawRetTrack?.refundAmount || order.totalAmount,
+                  refundMode: (rawRetTrack?.refundMode || ((order.paymentMethod || '').toUpperCase() === 'COD' ? 'BANK_TRANSFER' : 'ORIGINAL_PAYMENT_MODE')) as 'ORIGINAL_PAYMENT_MODE' | 'BANK_TRANSFER',
+                  milestones: rawRetTrack?.milestones && rawRetTrack.milestones.length > 0 ? rawRetTrack.milestones : [
                     {
                       status: 'REQUESTED',
                       title: (order.orderStatus?.includes('EXCHANGE') ? 'Exchange' : 'Return') + ' Initiated',
@@ -786,61 +949,60 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                     key={order.id}
                     className="bg-white dark:bg-[#1A1410] rounded-2xl border border-neutral-200 dark:border-[#2C211A] shadow-2xs hover:shadow-md transition-all duration-200 overflow-hidden"
                   >
-                    {/* SLEEK SINGLE CARD COLLAPSED VIEW (Tap to expand) */}
+                    {/* SLEEK COMPACT ORDER CARD HEADER (Tap to expand) */}
                     <div
                       onClick={() => toggleOrderCard(order.id)}
-                      className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer hover:bg-neutral-50/70 dark:hover:bg-[#251D18]/50 transition select-none"
+                      className="px-3.5 py-2.5 sm:py-3 flex flex-col md:flex-row md:items-center justify-between gap-2 cursor-pointer hover:bg-neutral-50/70 dark:hover:bg-[#251D18]/50 transition select-none"
                     >
                       {/* Left: Icon & Order Essentials */}
-                      <div className="flex items-start sm:items-center gap-3.5 flex-1 min-w-0">
-                        <div className="w-11 h-11 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-900/60 text-amber-800 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-2xs">
-                          <Package className="w-5 h-5 text-amber-700 dark:text-amber-400" />
+                      <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                        <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-900/60 text-amber-800 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-2xs">
+                          <Package className="w-4 h-4 text-amber-700 dark:text-amber-400" />
                         </div>
 
-                        <div className="space-y-0.5 min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <span className="font-mono text-xs font-bold text-neutral-900 dark:text-[#EDE4DA] tracking-tight">
                               {order.orderNumber}
                             </span>
-                            {order.awbNumber && (
-                              <span className="text-[10px] font-mono bg-neutral-100 dark:bg-[#251D18] text-neutral-600 dark:text-neutral-400 px-2 py-0.5 rounded border border-neutral-200 dark:border-[#382B21]">
-                                AWB: {order.awbNumber}
-                              </span>
-                            )}
                             <span className="text-[11px] text-neutral-300 dark:text-neutral-600">•</span>
                             <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                              Placed on{' '}
                               {new Date(order.createdAt).toLocaleDateString(undefined, {
                                 month: 'short',
                                 day: 'numeric',
                                 year: 'numeric',
                               })}
                             </span>
+                            {order.awbNumber && (
+                              <span className="text-[10px] font-mono bg-neutral-100 dark:bg-[#251D18] text-neutral-600 dark:text-neutral-400 px-1.5 py-0.2 rounded border border-neutral-200 dark:border-[#382B21]">
+                                AWB: {order.awbNumber}
+                              </span>
+                            )}
                           </div>
 
-                          {/* Compact Items One-Liner */}
-                          {(() => {
-                            const distinctCount = order.items.length;
-                            const totalUnitsCount = order.items.reduce((sum, i) => sum + (i.quantity || 1), 0);
-                            return (
-                              <p className="text-xs text-neutral-600 dark:text-neutral-400 truncate max-w-xl">
-                                <strong className="text-neutral-900 dark:text-[#EDE4DA]">
-                                  {distinctCount} Product{distinctCount > 1 ? 's' : ''} ({totalUnitsCount} Unit{totalUnitsCount > 1 ? 's' : ''}):
-                                </strong>{' '}
-                                {itemsSummary}
-                              </p>
-                            );
-                          })()}
+                          {/* Compact Items Summary */}
+                          <p className="text-xs text-neutral-600 dark:text-neutral-400 truncate mt-0.5 max-w-xl">
+                            <span className="font-semibold text-neutral-800 dark:text-[#EDE4DA]">{itemsSummary}</span>
+                            <span className="text-[11px] text-neutral-400 dark:text-neutral-500 ml-1.5">
+                              ({order.items.reduce((sum, i) => sum + (i.quantity || 1), 0)} unit{order.items.reduce((sum, i) => sum + (i.quantity || 1), 0) > 1 ? 's' : ''})
+                            </span>
+                          </p>
                         </div>
                       </div>
 
                       {/* Right: Status Pills, Total & Expand Arrow */}
-                      <div className="flex items-center justify-between md:justify-end gap-3 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-neutral-100 dark:border-[#2C211A]">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
-                            {order.orderStatus}
+                      <div className="flex items-center justify-between md:justify-end gap-2.5 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-neutral-100 dark:border-[#2C211A]">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                            effectiveOrderStatus === 'DELIVERED'
+                              ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
+                              : effectiveOrderStatus === 'CANCELLED'
+                              ? 'bg-red-50 dark:bg-red-950/50 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800/60'
+                              : 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/60'
+                          }`}>
+                            {effectiveOrderStatus}
                           </span>
-                          {order.paymentStatus === 'PAID' && (
+                          {(effectivePaymentStatus === 'PAID' || isOrderDelivered) && (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300">
                               PAID
                             </span>
@@ -853,77 +1015,80 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                           </span>
                         </div>
 
-                        <div className="w-8 h-8 rounded-full bg-neutral-100 dark:bg-[#251D18] hover:bg-neutral-200 dark:hover:bg-[#33261D] flex items-center justify-center text-neutral-500 dark:text-neutral-400 transition-transform">
-                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        <div className="w-7 h-7 rounded-full bg-neutral-100 dark:bg-[#251D18] hover:bg-neutral-200 dark:hover:bg-[#33261D] flex items-center justify-center text-neutral-500 dark:text-neutral-400 transition-transform">
+                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                         </div>
                       </div>
                     </div>
 
                     {/* EXPANDED CONTENT WHEN TAPPED */}
                     {isExpanded && (
-                      <div className="p-4 sm:p-6 border-t border-neutral-100 dark:border-[#2C211A] bg-[#FCFBF9]/60 dark:bg-[#140F0D]/60 space-y-4 animate-in fade-in duration-200">
+                      <div className="p-3 sm:p-3.5 border-t border-neutral-100 dark:border-[#2C211A] bg-[#FCFBF9]/60 dark:bg-[#140F0D]/60 space-y-2.5 animate-in fade-in duration-200">
                         {/* Two Primary Action Dropdowns: Tracking / Delivery Info & Review */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {/* BUTTON 1: Tapping tracking / delivery details */}
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               toggleOrderSubDropdown(order, 'tracking');
+                              if (hasReturnExchange) {
+                                setTrackingViewMode((prev) => ({ ...prev, [order.id]: 'return' }));
+                              }
                             }}
-                            className={`p-3 rounded-2xl border text-xs font-semibold flex items-center justify-between gap-2 transition-all shadow-2xs ${
+                            className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-between gap-2 transition-all shadow-2xs ${
                               activeTab === 'tracking'
-                                ? 'bg-[#1E1611] dark:bg-rose-950/80 text-white border-[#1E1611] dark:border-rose-900 shadow-sm'
+                                ? 'bg-[#1E1611] dark:bg-rose-950/80 text-white border-[#1E1611] dark:border-rose-900 shadow-xs'
                                 : 'bg-white dark:bg-[#1A1410] hover:bg-neutral-50 dark:hover:bg-[#251D18] text-neutral-800 dark:text-[#EDE4DA] border-neutral-200 dark:border-[#2C211A]'
                             }`}
                           >
-                            <div className="flex items-center gap-2.5 text-left">
+                            <div className="flex items-center gap-2 text-left min-w-0">
                               <div
-                                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                                className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
                                   activeTab === 'tracking'
                                     ? 'bg-white/20 text-white'
                                     : hasReturnExchange
                                     ? 'bg-rose-100 dark:bg-rose-950/50 text-rose-800 dark:text-rose-400'
-                                    : order.orderStatus === 'DELIVERED'
+                                    : isOrderDelivered
                                     ? 'bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-400'
                                     : 'bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-400'
                                 }`}
                               >
                                 {hasReturnExchange ? (
-                                  <RotateCcw className="w-4 h-4" />
-                                ) : order.orderStatus === 'DELIVERED' ? (
-                                  <CheckCircle2 className="w-4 h-4" />
+                                  <RotateCcw className="w-3 h-3" />
+                                ) : isOrderDelivered ? (
+                                  <CheckCircle2 className="w-3 h-3" />
                                 ) : (
-                                  <Truck className="w-4 h-4" />
+                                  <Truck className="w-3 h-3" />
                                 )}
                               </div>
-                              <div>
-                                <span className="block font-bold">
+                              <div className="truncate">
+                                <span className="block font-bold leading-tight truncate">
                                   {hasReturnExchange
                                     ? (retTrack?.type === 'EXCHANGE' ? 'Exchange & Replacement' : 'Return & Refund')
-                                    : order.orderStatus === 'DELIVERED'
+                                    : isOrderDelivered
                                     ? 'Delivery Details'
                                     : 'Delivery Tracking'}
                                 </span>
                                 <span
-                                  className={`text-[10px] font-normal ${
+                                  className={`text-[10px] font-normal leading-tight block truncate ${
                                     activeTab === 'tracking' ? 'text-amber-200 dark:text-amber-300' : 'text-neutral-500 dark:text-neutral-400'
                                   }`}
                                 >
                                   {hasReturnExchange
                                     ? (retTrack?.currentStatus === 'COMPLETED' ? 'Completed' : 'Reverse pickup active')
-                                    : order.orderStatus === 'DELIVERED'
+                                    : isOrderDelivered
                                     ? `Delivered on ${order.deliveredAt ? new Date(order.deliveredAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Recent'}`
                                     : order.awbNumber
-                                    ? `Xpressbees • ${order.courierStatus || 'In Transit'}`
+                                    ? `Xpressbees • ${effectiveCourierStatus || 'In Transit'}`
                                     : 'Processing'}
                                 </span>
                               </div>
                             </div>
                             {activeTab === 'tracking' ? (
-                              <ChevronUp className="w-4 h-4 opacity-80" />
+                              <ChevronUp className="w-3.5 h-3.5 opacity-80 shrink-0" />
                             ) : (
-                              <ChevronDown className="w-4 h-4 text-neutral-400 dark:text-neutral-500" />
+                              <ChevronDown className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500 shrink-0" />
                             )}
                           </button>
 
@@ -934,28 +1099,28 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                               e.stopPropagation();
                               toggleOrderSubDropdown(order, 'reviews');
                             }}
-                            className={`p-3 rounded-2xl border text-xs font-semibold flex items-center justify-between gap-2 transition-all shadow-2xs ${
+                            className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-between gap-2 transition-all shadow-2xs ${
                               activeTab === 'reviews'
-                                ? 'bg-[#1E1611] dark:bg-rose-950/80 text-white border-[#1E1611] dark:border-rose-900 shadow-sm'
+                                ? 'bg-[#1E1611] dark:bg-rose-950/80 text-white border-[#1E1611] dark:border-rose-900 shadow-xs'
                                 : 'bg-white dark:bg-[#1A1410] hover:bg-neutral-50 dark:hover:bg-[#251D18] text-neutral-800 dark:text-[#EDE4DA] border-neutral-200 dark:border-[#2C211A]'
                             }`}
                           >
-                            <div className="flex items-center gap-2.5 text-left">
+                            <div className="flex items-center gap-2 text-left min-w-0">
                               <div
-                                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                                className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
                                   activeTab === 'reviews'
                                     ? 'bg-white/20 text-amber-300'
                                     : 'bg-rose-100 dark:bg-rose-950/50 text-rose-800 dark:text-rose-400'
                                 }`}
                               >
-                                <Star className="w-4 h-4 fill-current" />
+                                <Star className="w-3 h-3 fill-current" />
                               </div>
-                              <div>
-                                <span className="block font-bold">
+                              <div className="truncate">
+                                <span className="block font-bold leading-tight truncate">
                                   Product Reviews ({order.items.length})
                                 </span>
                                 <span
-                                  className={`text-[10px] font-normal ${
+                                  className={`text-[10px] font-normal leading-tight block truncate ${
                                     activeTab === 'reviews' ? 'text-rose-200 dark:text-rose-300' : 'text-neutral-500 dark:text-neutral-400'
                                   }`}
                                 >
@@ -966,53 +1131,53 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                               </div>
                             </div>
                             {activeTab === 'reviews' ? (
-                              <ChevronUp className="w-4 h-4 opacity-80" />
+                              <ChevronUp className="w-3.5 h-3.5 opacity-80 shrink-0" />
                             ) : (
-                              <ChevronDown className="w-4 h-4 text-neutral-400 dark:text-neutral-500" />
+                              <ChevronDown className="w-3.5 h-3.5 text-neutral-400 dark:text-neutral-500 shrink-0" />
                             )}
                           </button>
                         </div>
 
                         {/* DROPDOWN 1: ORDER TRACKING OR DELIVERY RECEIPT */}
                         {activeTab === 'tracking' && (
-                          <div className="pt-2 animate-in fade-in duration-200">
-                            {(order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED') && !hasReturnExchange ? (
-                              /* DELIVERED ORDER VIEW: Clean Delivery Completed Confirmation (No ongoing in-motion tracking needed) */
-                              <div className="bg-white dark:bg-[#1A1410] rounded-2xl p-6 border border-emerald-200/90 dark:border-emerald-900/60 shadow-sm space-y-5">
-                                <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-neutral-100 dark:border-[#2C211A]">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 flex items-center justify-center shrink-0">
-                                      <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                          <div className="pt-1 animate-in fade-in duration-200">
+                            {isOrderDelivered && !hasReturnExchange ? (
+                              /* DELIVERED ORDER VIEW: Clean Delivery Completed Confirmation (No redundant inner return button) */
+                              <div className="bg-white dark:bg-[#1A1410] rounded-xl p-3 sm:p-3.5 border border-emerald-200/90 dark:border-emerald-900/60 shadow-2xs space-y-2.5">
+                                <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2 border-b border-neutral-100 dark:border-[#2C211A]">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                                      <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                                     </div>
                                     <div>
-                                      <h3 className="font-serif text-lg font-bold text-neutral-900 dark:text-[#EDE4DA]">
+                                      <h3 className="font-serif text-sm sm:text-base font-bold text-neutral-900 dark:text-[#EDE4DA]">
                                         Delivered to Customer
                                       </h3>
-                                      <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                                      <p className="text-[10.5px] text-neutral-500 dark:text-neutral-400">
                                         Handed over directly at your doorstep
                                       </p>
                                     </div>
                                   </div>
 
                                   <div className="flex items-center gap-2">
-                                    <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                    <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                                       DELIVERED
                                     </span>
                                   </div>
                                 </div>
 
                                 {/* Delivery Details Summary Card */}
-                                <div className="p-4 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/40 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                                <div className="p-2.5 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/25 border border-emerald-200/50 dark:border-emerald-900/30 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                                   <div>
-                                    <span className="text-[11px] text-neutral-500 dark:text-neutral-400 block">Delivered On:</span>
-                                    <strong className="text-neutral-900 dark:text-emerald-200 text-sm">
+                                    <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block font-medium">Delivered On:</span>
+                                    <strong className="text-neutral-900 dark:text-emerald-200 text-xs">
                                       {order.deliveredAt ? new Date(order.deliveredAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Delivered Today'}
                                     </strong>
                                   </div>
                                   <div>
-                                    <span className="text-[11px] text-neutral-500 dark:text-neutral-400 block">Courier Partner:</span>
-                                    <strong className="text-neutral-900 dark:text-neutral-100 text-sm">
+                                    <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block font-medium">Courier Partner:</span>
+                                    <strong className="text-neutral-900 dark:text-neutral-100 text-xs">
                                       {order.courierName || 'Xpressbees Air Express'}
                                     </strong>
                                     {order.awbNumber && (
@@ -1020,36 +1185,18 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                     )}
                                   </div>
                                   <div>
-                                    <span className="text-[11px] text-neutral-500 dark:text-neutral-400 block">Delivery Address:</span>
-                                    <strong className="text-neutral-900 dark:text-neutral-100">
+                                    <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block font-medium">Delivery Address:</span>
+                                    <strong className="text-neutral-900 dark:text-neutral-100 text-xs">
                                       {(order.city && order.state) ? `${order.city}, ${order.state}` : (order.city || 'Your Registered Address')}
                                     </strong>
                                   </div>
                                 </div>
-
-                                {/* Post-Delivery Actions: Easy Return or Exchange */}
-                                <div className="p-3.5 rounded-xl bg-[#FAF9F6] dark:bg-[#1E1712] border border-neutral-200/70 dark:border-[#2C211A] flex flex-wrap items-center justify-between gap-3 text-xs">
-                                  <div className="flex items-center gap-2">
-                                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                                    <span className="text-neutral-600 dark:text-neutral-400">
-                                      Product didn't suit you or received damaged shade? 7-Day Easy Return Guarantee.
-                                    </span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => setReturnModalOrder(order)}
-                                    className="px-4 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition shadow-xs flex items-center gap-1.5 cursor-pointer"
-                                  >
-                                    <RotateCcw className="w-3.5 h-3.5" />
-                                    <span>Initiate Return or Exchange</span>
-                                  </button>
-                                </div>
                               </div>
                             ) : (
                               /* ACTIVE TRACKING JOURNEY (For Orders in transit / pre-dispatch OR orders with Return / Exchange in progress) */
-                              <div className="bg-white dark:bg-[#1A1410] rounded-2xl p-5 border border-neutral-200/90 dark:border-[#2C211A] shadow-sm space-y-6">
+                              <div className="bg-white dark:bg-[#1A1410] rounded-xl p-3.5 sm:p-4 border border-neutral-200/90 dark:border-[#2C211A] shadow-xs space-y-3.5">
                                 {/* Dropdown Header */}
-                                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-neutral-100 dark:border-[#2C211A]">
+                                <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2.5 border-b border-neutral-100 dark:border-[#2C211A]">
                                   <div>
                                     <div className="flex items-center gap-2">
                                       <h3 className="font-serif text-lg font-bold text-neutral-900 dark:text-[#EDE4DA]">
@@ -1091,10 +1238,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                         </span>
                                       )}
                                     </div>
-                                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                                      {currentView === 'return' && retTrack
-                                        ? `Xpressbees Reverse Logistics • Reverse AWB #${retTrack.awb}`
-                                        : `Xpressbees Air Express • ${order.awbNumber ? `AWB #${order.awbNumber}` : 'Tracking active'}`}
+                                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-mono font-bold text-neutral-700 dark:text-neutral-300">Order #{order.orderNumber}</span>
+                                      <span className="text-neutral-300 dark:text-neutral-600">•</span>
+                                      <span>
+                                        {currentView === 'return' && retTrack
+                                          ? `Xpressbees Reverse Logistics • Reverse AWB #${retTrack.awb}`
+                                          : `Xpressbees Air Express • ${order.awbNumber ? `AWB #${order.awbNumber}` : 'Tracking active'}`}
+                                      </span>
                                     </p>
                                   </div>
 
@@ -1162,49 +1313,115 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                   </div>
                                 )}
 
-                                {/* Centered Order Code Pill (Inspired by Reference Design) */}
-                                <div className="text-center pt-1">
-                                  <div className="inline-block bg-neutral-100 dark:bg-[#251D18] border border-neutral-200 dark:border-[#382B21] text-neutral-800 dark:text-[#EDE4DA] font-mono font-bold text-xs px-6 py-1.5 rounded-lg shadow-2xs">
-                                    {order.orderNumber}
-                                  </div>
-                                </div>
-
                                 {/* Estimated / Completed Delivery / Return Notice */}
                                 {currentView === 'return' && retTrack ? (
-                                  <div className={`border rounded-xl px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-xs animate-in fade-in duration-200 ${
-                                    retTrack.currentStatus === 'COMPLETED'
-                                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60'
-                                      : retTrack.currentStatus === 'REJECTED'
-                                      ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/60'
-                                      : 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-200/80 dark:border-blue-900/60'
-                                  }`}>
-                                    <div className="flex items-center gap-2">
-                                      {retTrack.currentStatus === 'COMPLETED' ? (
-                                        <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                      ) : retTrack.currentStatus === 'REJECTED' ? (
-                                        <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
-                                      ) : (
-                                        <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                                  (retTrack.currentStatus === 'PICKUP_NDR' || retTrack.ndrInfo) ? (
+                                    /* DEDICATED RETURN / EXCHANGE NDR BANNER FOR CUSTOMER */
+                                    <div className="bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 rounded-2xl p-4 space-y-3 text-xs animate-in fade-in duration-200">
+                                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200">
+                                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                                          <span className="font-bold text-sm">
+                                            {retTrack.type === 'EXCHANGE'
+                                              ? `Exchange Handover Re-attempt Scheduled (Attempt #${retTrack.ndrInfo?.attempts || 1} of 3)`
+                                              : `Return Pickup Re-attempt Scheduled (Attempt #${retTrack.ndrInfo?.attempts || 1} of 3)`}
+                                          </span>
+                                        </div>
+                                        <span className="px-2.5 py-0.5 rounded-full bg-amber-200 dark:bg-amber-900/80 text-amber-900 dark:text-amber-200 text-[10px] font-bold uppercase tracking-wider shrink-0">
+                                          {retTrack.type === 'EXCHANGE' ? 'Exchange Re-attempt Pending' : 'Pickup Re-attempt Pending'}
+                                        </span>
+                                      </div>
+
+                                      {/* Return/Exchange-specific NDR message */}
+                                      <div className="p-3 rounded-xl bg-white dark:bg-[#1E1611] border border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200 leading-relaxed text-xs">
+                                        {(() => {
+                                          const r = (retTrack.ndrInfo?.reasonCode || '').toUpperCase();
+                                          const isEx = retTrack.type === 'EXCHANGE';
+                                          if (r.includes('CUSTOMER_UNREACHABLE') || r.includes('NOT_PICKING')) {
+                                            return isEx
+                                              ? '📞 We tried calling you for doorstep exchange handover, but you did not respond. We will re-attempt delivery tomorrow.'
+                                              : '📞 We tried calling you for return pickup, but you did not respond. We will re-attempt pickup tomorrow.';
+                                          }
+                                          if (r.includes('POSTPONED')) {
+                                            return isEx
+                                              ? '⏳ Exchange handover postponed at your request. Courier will re-attempt delivery tomorrow.'
+                                              : '⏳ Return pickup postponed at your request. Courier will re-attempt pickup tomorrow.';
+                                          }
+                                          if (r.includes('PREMISES_LOCKED')) {
+                                            return isEx
+                                              ? '🔒 Exchange delivery attempted, but premises were locked. Courier will re-attempt on the next business day.'
+                                              : '🔒 Return pickup attempted, but premises were locked. Courier will re-attempt pickup on the next business day.';
+                                          }
+                                          if (r.includes('ITEM_NOT_READY')) {
+                                            return isEx
+                                              ? '📦 Return item was not ready for handover. Courier will re-attempt exchange delivery tomorrow. Please keep the item ready.'
+                                              : '📦 Return pickup attempted, but item / packaging was not ready. Courier will re-attempt pickup tomorrow. Please keep the item packed with original tags.';
+                                          }
+                                          return retTrack.ndrInfo?.customerMessage || (isEx ? '🚚 Exchange delivery attempt unsuccessful. Courier will re-attempt tomorrow.' : '🚚 Return pickup attempt unsuccessful. Courier will re-attempt pickup tomorrow.');
+                                        })()}
+                                      </div>
+
+                                      {retTrack.returnExchangeId && (
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-amber-200/80 dark:border-amber-900/40">
+                                          <span className="text-[11px] text-amber-800 dark:text-amber-300">
+                                            {retTrack.type === 'EXCHANGE' ? 'Changed your mind? Keep your original product:' : 'Changed your mind? Keep your product anytime before pickup:'}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleCancelReturnRequest(order.id, retTrack.returnExchangeId!)}
+                                            className="px-3 py-1.5 rounded-full border border-amber-300 dark:border-amber-700 bg-white dark:bg-[#1E1611] text-amber-900 dark:text-amber-200 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-300 text-[11px] font-semibold transition shadow-2xs flex items-center gap-1 cursor-pointer self-start sm:self-auto"
+                                          >
+                                            <XCircle className="w-3.5 h-3.5 text-amber-600 hover:text-rose-600" />
+                                            <span>{retTrack.type === 'EXCHANGE' ? 'Cancel Exchange & Keep Product' : 'Cancel Return & Keep Product'}</span>
+                                          </button>
+                                        </div>
                                       )}
-                                      <span className="font-semibold text-neutral-900 dark:text-white">
-                                        {retTrack.type === 'EXCHANGE' ? 'Exchange Journey Status:' : 'Return Pickup Status:'}
-                                      </span>
                                     </div>
-                                    <span className="font-bold text-neutral-900 dark:text-neutral-100 text-xs sm:text-sm">
-                                      {retTrack.nextActionEstimate}
-                                    </span>
-                                    {retTrack.returnExchangeId && (retTrack.currentStatus === 'REQUESTED' || retTrack.currentStatus === 'PICKUP_SCHEDULED') && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleCancelReturnRequest(order.id, retTrack.returnExchangeId!)}
-                                        className="mt-2 sm:mt-0 px-3 py-1 rounded-full border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#1E1611] text-neutral-700 dark:text-neutral-300 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-300 text-[11px] font-semibold transition shadow-2xs flex items-center gap-1 cursor-pointer"
-                                      >
-                                        <XCircle className="w-3 h-3 text-neutral-500 hover:text-rose-600" />
-                                        <span>Cancel Return & Keep Product</span>
-                                      </button>
-                                    )}
-                                  </div>
-                                ) : order.orderStatus === 'CANCELLED' ? (
+                                  ) : (
+                                      <div className={`border rounded-xl px-3.5 py-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5 text-xs animate-in fade-in duration-200 ${
+                                        retTrack.currentStatus === 'COMPLETED'
+                                          ? 'bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60'
+                                          : retTrack.currentStatus === 'REJECTED'
+                                          ? 'bg-rose-50/90 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/60'
+                                          : 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-200/80 dark:border-blue-900/60'
+                                      }`}>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          {retTrack.currentStatus === 'COMPLETED' ? (
+                                            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                          ) : retTrack.currentStatus === 'REJECTED' ? (
+                                            <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+                                          ) : (
+                                            <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                                          )}
+                                          <span className="font-semibold text-neutral-900 dark:text-white">
+                                            {retTrack.type === 'EXCHANGE' ? 'Doorstep Exchange:' : 'Return Pickup:'}
+                                          </span>
+                                          <span className="text-neutral-700 dark:text-neutral-300 font-medium">
+                                            {retTrack.itemTitle}
+                                          </span>
+                                          <span className="text-neutral-300 dark:text-neutral-600">•</span>
+                                          <span className="font-bold text-neutral-900 dark:text-neutral-100">
+                                            {retTrack.nextActionEstimate}
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 self-end sm:self-auto">
+                                          <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400">
+                                            {retTrack.type === 'EXCHANGE' ? `Replacement AWB: ${retTrack.awb}` : `Reverse AWB: ${retTrack.awb}`}
+                                          </span>
+                                          {retTrack.returnExchangeId && (retTrack.currentStatus === 'REQUESTED' || retTrack.currentStatus === 'PICKUP_SCHEDULED') && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleCancelReturnRequest(order.id, retTrack.returnExchangeId!)}
+                                              className="px-2.5 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-[#1E1611] text-neutral-700 dark:text-neutral-300 hover:text-rose-600 dark:hover:text-rose-400 hover:border-rose-300 text-[11px] font-semibold transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                                            >
+                                              <XCircle className="w-3 h-3 text-neutral-500 hover:text-rose-600" />
+                                              <span>{retTrack.type === 'EXCHANGE' ? 'Cancel Exchange' : 'Cancel Return'}</span>
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )
+                                ) : isOrderCancelled ? (
                                   <div className="bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-900/60 rounded-xl px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-xs">
                                     <div className="flex items-center gap-2 text-rose-900 dark:text-rose-300">
                                       <CheckCircle2 className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
@@ -1213,6 +1430,56 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                     <span className="font-medium text-rose-800 dark:text-rose-200 text-[11px] sm:text-xs">
                                       ₹{order.totalAmount.toLocaleString()} refunded to original payment method
                                     </span>
+                                  </div>
+                                ) : (!isOrderDelivered && !isOrderCancelled && (effectiveCourierStatus === 'NDR_PENDING' || tracking?.currentStatus === 'NDR_PENDING')) ? (
+                                  /* DEDICATED NDR BANNER FOR CUSTOMER */
+                                  <div className="bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 rounded-2xl p-4 space-y-3 text-xs animate-in fade-in duration-200">
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2 text-amber-900 dark:text-amber-200">
+                                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                                        <span className="font-bold text-sm">Delivery Re-attempt Scheduled (Attempt #{order.deliveryAttempts || 1} of 3)</span>
+                                      </div>
+                                      <span className="px-2.5 py-0.5 rounded-full bg-amber-200 dark:bg-amber-900/80 text-amber-900 dark:text-amber-200 text-[10px] font-bold uppercase tracking-wider shrink-0">
+                                        Re-attempt Pending
+                                      </span>
+                                    </div>
+
+                                    {/* Exact reason-specific message matching user requirements */}
+                                    <div className="p-3 rounded-xl bg-white dark:bg-[#1E1611] border border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200 leading-relaxed text-xs">
+                                      {(() => {
+                                        const r = (order.deliveryFailureReason || tracking?.ndrInfo?.reasonCode || '').toUpperCase();
+                                        if (r.includes('CUSTOMER_UNREACHABLE') || r.includes('NOT_PICKING')) {
+                                          return '📞 We tried calling you, but you did not respond. We will re-attempt delivery tomorrow.';
+                                        }
+                                        if (r.includes('CASH_NOT_READY') || r.includes('POSTPONED')) {
+                                          return '⏳ Delivery postponed at your request. We will re-attempt delivery tomorrow.';
+                                        }
+                                        if (r.includes('PREMISES_LOCKED')) {
+                                          return '🔒 Doorstep delivery attempted, but premises were locked. We will re-attempt delivery on the next business day.';
+                                        }
+                                        if (r.includes('ADDRESS_INCOMPLETE') || r.includes('INCORRECT_ADDRESS') || r.includes('ADDRESS')) {
+                                          return "📍 We tried delivering your product, but couldn't reach your address. Please verify or update your delivery address below.";
+                                        }
+                                        return '🚚 Delivery attempt unsuccessful. Courier will re-attempt delivery tomorrow.';
+                                      })()}
+                                    </div>
+
+                                    {/* Address Edit Prompt for Address Incomplete */}
+                                    {(order.deliveryFailureReason?.toUpperCase().includes('ADDRESS') || tracking?.ndrInfo?.needsAddressUpdate) && (
+                                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-amber-200/80 dark:border-amber-900/40">
+                                        <div className="text-[11px] text-amber-800 dark:text-amber-300">
+                                          Current Delivery Address: <strong>{order.addressLine}, {order.city} - {order.pincode}</strong>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenEditOrderAddress(order)}
+                                          className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 shrink-0 shadow-2xs cursor-pointer"
+                                        >
+                                          <MapPin className="w-3.5 h-3.5" />
+                                          <span>Update Delivery Address</span>
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
                                 ) : tracking?.expectedDelivery ? (
                                   <div className="bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs">
@@ -1229,19 +1496,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                 {/* ANIMATED FLUID JOURNEY PIPELINE */}
                                 {currentView === 'return' && retTrack ? (
                                   /* AMAZON-STYLE REVERSE LOGISTICS PIPELINE */
-                                  <div className="pt-8 pb-4 px-2 sm:px-6 relative select-none">
-                                    {/* Item context banner */}
-                                    <div className="mb-4 p-2.5 rounded-xl bg-neutral-50 dark:bg-[#251D18] border border-neutral-200/80 dark:border-[#382B21] flex items-center justify-between text-xs">
-                                      <div className="flex items-center gap-2">
-                                        <RotateCcw className="w-4 h-4 text-rose-600 shrink-0" />
-                                        <span className="text-neutral-700 dark:text-neutral-300">
-                                          <strong>{retTrack.type === 'EXCHANGE' ? 'Exchange Item:' : 'Return Item:'}</strong> {retTrack.itemTitle}
-                                        </span>
-                                      </div>
-                                      <span className="text-[11px] font-mono text-neutral-500">
-                                        Reverse AWB: {retTrack.awb}
-                                      </span>
-                                    </div>
+                                  <div className="pt-3 pb-1 px-2 sm:px-4 relative select-none">
+                                    
 
                                     <div className="relative">
                                       {/* Progress Line */}
@@ -1289,123 +1545,120 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                       </div>
                                     </div>
 
-                                    {/* FLUID ANIMATED REVERSE TRUCK */}
-                                    <div
-                                      className="absolute top-10 transition-all duration-1000 ease-out -translate-x-1/2 pointer-events-none z-20 flex flex-col items-center"
-                                      style={{
-                                        left:
-                                          retTrack.stageIndex === 0
-                                            ? '12%'
-                                            : retTrack.stageIndex === 1
-                                            ? '38%'
-                                            : retTrack.stageIndex === 2
-                                            ? '65%'
-                                            : '92%',
-                                      }}
-                                    >
-                                      <div className="relative animate-truck-bounce">
-                                        <div className={`relative px-2.5 py-1 rounded-xl shadow-lg border flex items-center gap-1.5 ${
-                                          retTrack.stageIndex === 3
-                                            ? 'bg-emerald-700 text-white border-emerald-600'
-                                            : 'bg-rose-900 text-white border-rose-800'
-                                        }`}>
-                                          <Truck className="w-4 h-4 text-amber-300" />
-                                          <span className="text-[9px] font-mono font-bold tracking-tight text-white">
-                                            {retTrack.stageIndex === 0
-                                              ? 'RETURN INITIATED'
-                                              : retTrack.stageIndex === 1
-                                              ? 'RETURN EXAMINE'
-                                              : retTrack.stageIndex === 2
-                                              ? 'RETURN PICK SUCCESS'
-                                              : (retTrack.type === 'EXCHANGE' ? 'EXCHANGE DISPATCHED' : 'REFUND ISSUED')}
-                                          </span>
+                                    {/* 4 STAGES CARDS (DEDICATED SEPARATION: RETURN VS EXCHANGE) */}
+                                      <div className="grid grid-cols-4 mt-3.5 gap-2 text-center relative z-10">
+                                        {/* 1. Stage 1 */}
+                                        <div className="flex flex-col items-center group">
+                                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                                            retTrack.stageIndex >= 0
+                                              ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
+                                              : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400'
+                                          }`}>
+                                            {retTrack.type === 'EXCHANGE' ? (
+                                              <RefreshCw className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                                            ) : (
+                                              <RotateCcw className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                                            )}
+                                          </div>
+                                          <p className="mt-1.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">
+                                            {retTrack.type === 'EXCHANGE' ? 'Exchange Confirmed' : 'Return Initiated'}
+                                          </p>
+                                          <p className="text-[10.5px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                            {retTrack.type === 'EXCHANGE' ? 'Replacement Booked' : 'Pickup Booked'}
+                                          </p>
                                         </div>
-                                        <div className={`w-1.5 h-1.5 mx-auto mt-0.5 rounded-full ${retTrack.stageIndex === 3 ? 'bg-emerald-400' : 'bg-rose-500 animate-ping'}`} />
+
+                                        {/* 2. Stage 2 */}
+                                        <div className="flex flex-col items-center group">
+                                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                                            retTrack.currentStatus === 'PICKUP_NDR'
+                                              ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800/60'
+                                              : retTrack.stageIndex >= 1
+                                              ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
+                                              : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400'
+                                          }`}>
+                                            {retTrack.type === 'EXCHANGE' ? (
+                                              <Package className={`w-4 h-4 ${retTrack.currentStatus === 'PICKUP_NDR' ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`} />
+                                            ) : (
+                                              <ShieldCheck className={`w-4 h-4 ${retTrack.currentStatus === 'PICKUP_NDR' ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'}`} />
+                                            )}
+                                          </div>
+                                          <p className="mt-1.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">
+                                            {retTrack.type === 'EXCHANGE' ? 'Replacement Packed' : 'Return Examine'}
+                                          </p>
+                                          <p className="text-[10.5px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                            {retTrack.currentStatus === 'PICKUP_NDR'
+                                              ? 'Re-attempt Tomorrow'
+                                              : retTrack.type === 'EXCHANGE'
+                                              ? (retTrack.stageIndex >= 1 ? 'In Air Transit' : 'Packing in Progress')
+                                              : (retTrack.stageIndex >= 1 ? 'Doorstep Inspection' : 'Agent Assigned')}
+                                          </p>
+                                        </div>
+
+                                        {/* 3. Stage 3 */}
+                                        <div className="flex flex-col items-center group">
+                                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                                            retTrack.stageIndex >= 2
+                                              ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
+                                              : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400'
+                                          }`}>
+                                            {retTrack.type === 'EXCHANGE' ? (
+                                              <Truck className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                                            ) : (
+                                              <Check className="w-4 h-4 text-rose-600 dark:text-rose-400" strokeWidth={2.5} />
+                                            )}
+                                          </div>
+                                          <p className="mt-1.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">
+                                            {retTrack.type === 'EXCHANGE' ? 'Out for Handover' : 'Return Pick Success'}
+                                          </p>
+                                          <p className="text-[10.5px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                            {retTrack.type === 'EXCHANGE'
+                                              ? (retTrack.stageIndex >= 2 ? 'Courier at Doorstep' : 'Pending Dispatch')
+                                              : (retTrack.stageIndex >= 2 ? 'Item Collected' : 'Pending Pickup')}
+                                          </p>
+                                        </div>
+
+                                        {/* 4. Stage 4 */}
+                                        <div className="flex flex-col items-center">
+                                          <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                                            retTrack.stageIndex === 3
+                                              ? 'bg-emerald-600 text-white border border-emerald-600 shadow-emerald-500/20'
+                                              : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400'
+                                          }`}>
+                                            {retTrack.stageIndex === 3 ? (
+                                              <Check className="w-4 h-4 sm:w-5 sm:h-5 text-white" strokeWidth={2.5} />
+                                            ) : (
+                                              <Sparkles className="w-4 h-4 text-neutral-400" />
+                                            )}
+                                          </div>
+
+                                          {/* Stage Title with hover tooltip that ONLY appears when hovering upon the title */}
+                                          <div className="relative group/stagetitle mt-1.5 inline-flex flex-col items-center cursor-default">
+                                            <p className="text-xs font-bold text-neutral-900 dark:text-[#EDE4DA] hover:text-emerald-600 dark:hover:text-emerald-400 transition">
+                                              {retTrack.type === 'EXCHANGE' ? 'New Product Delivered' : 'Refund Issued'}
+                                            </p>
+                                            {/* Sleek Tooltip: strictly hidden until hovered directly on the title */}
+                                            <div className="absolute -top-7 left-1/2 -translate-x-1/2 opacity-0 group-hover/stagetitle:opacity-100 transition-opacity duration-150 pointer-events-none z-30 whitespace-nowrap bg-emerald-900 text-white text-[10px] font-medium px-2 py-0.5 rounded shadow-lg flex items-center gap-1 border border-emerald-700">
+                                              <Truck className="w-3 h-3 text-amber-300 shrink-0" />
+                                              <span>{retTrack.type === 'EXCHANGE' ? 'New Product Delivered' : 'Refund Issued'}</span>
+                                            </div>
+                                          </div>
+
+                                          <p className={`text-[10.5px] mt-0.5 ${retTrack.stageIndex === 3 ? 'text-emerald-600 font-semibold' : 'text-neutral-500'}`}>
+                                            {retTrack.stageIndex === 3
+                                              ? (retTrack.type === 'EXCHANGE'
+                                                  ? 'Handover Complete'
+                                                  : retTrack.refundMode === 'BANK_TRANSFER'
+                                                  ? `₹${retTrack.refundAmount?.toLocaleString() || ''} Transferred`
+                                                  : `₹${retTrack.refundAmount?.toLocaleString() || ''} Credited`)
+                                              : (retTrack.type === 'EXCHANGE' ? 'Pending Handover' : 'Refund Processing')}
+                                          </p>
+                                        </div>
                                       </div>
                                     </div>
-
-                                    {/* 4 REVERSE STAGES CARDS */}
-                                    <div className="grid grid-cols-4 mt-8 gap-2 text-center relative z-10">
-                                      {/* 1. Return Initiated */}
-                                      <div className="flex flex-col items-center group">
-                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-                                          retTrack.stageIndex >= 0
-                                            ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
-                                            : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400'
-                                        }`}>
-                                          <RotateCcw className="w-5 h-5 text-rose-600 dark:text-rose-400" />
-                                        </div>
-                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Return Initiated</p>
-                                        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">Pickup Booked</p>
-                                        <span className="text-[10px] text-neutral-400 font-mono mt-0.5">AWB Issued</span>
-                                      </div>
-
-                                      {/* 2. Return Examine */}
-                                      <div className="flex flex-col items-center group">
-                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-                                          retTrack.stageIndex >= 1
-                                            ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
-                                            : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400'
-                                        }`}>
-                                          <ShieldCheck className="w-5 h-5 text-rose-600 dark:text-rose-400" />
-                                        </div>
-                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Return Examine</p>
-                                        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
-                                          {retTrack.stageIndex >= 1 ? 'Doorstep Inspection' : 'Agent Assigned'}
-                                        </p>
-                                        <span className="text-[10px] text-neutral-400 font-mono mt-0.5">Seal Check</span>
-                                      </div>
-
-                                      {/* 3. Return Pick Success */}
-                                      <div className="flex flex-col items-center group">
-                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-                                          retTrack.stageIndex >= 2
-                                            ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60'
-                                            : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400'
-                                        }`}>
-                                          <Check className="w-5 h-5 text-rose-600 dark:text-rose-400" strokeWidth={2.5} />
-                                        </div>
-                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Return Pick Success</p>
-                                        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
-                                          {retTrack.stageIndex >= 2 ? 'Item Collected' : 'Pending Pickup'}
-                                        </p>
-                                        <span className="text-[10px] text-neutral-400 font-mono mt-0.5">Verified</span>
-                                      </div>
-
-                                      {/* 4. Refund Issued / Exchange Dispatched */}
-                                      <div className="flex flex-col items-center group">
-                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-                                          retTrack.stageIndex === 3
-                                            ? 'bg-emerald-600 text-white border border-emerald-600 shadow-emerald-500/20'
-                                            : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400'
-                                        }`}>
-                                          {retTrack.stageIndex === 3 ? (
-                                            <Check className="w-6 h-6 text-white" strokeWidth={2.5} />
-                                          ) : (
-                                            <Sparkles className="w-5 h-5 text-neutral-400" />
-                                          )}
-                                        </div>
-                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">
-                                          {retTrack.type === 'EXCHANGE' ? 'Exchange Dispatched' : 'Refund Issued'}
-                                        </p>
-                                        <p className={`text-[11px] mt-0.5 ${retTrack.stageIndex === 3 ? 'text-emerald-600 font-semibold' : 'text-neutral-500'}`}>
-                                          {retTrack.stageIndex === 3
-                                            ? (retTrack.type === 'EXCHANGE'
-                                                ? 'Unit Shipped'
-                                                : retTrack.refundMode === 'BANK_TRANSFER'
-                                                ? `₹${retTrack.refundAmount?.toLocaleString() || ''} Transferred to Bank`
-                                                : `₹${retTrack.refundAmount?.toLocaleString() || ''} Credited to Original Mode`)
-                                            : (retTrack.type === 'EXCHANGE' ? 'Doorstep Handover' : 'Refund Processing')}
-                                        </p>
-                                        <span className="text-[10px] text-neutral-400 font-mono mt-0.5">
-                                          {retTrack.stageIndex === 3 ? 'Complete' : 'Final Step'}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
                                 ) : (
                                   /* ORIGINAL FORWARD DELIVERY PIPELINE */
-                                  <div className="pt-8 pb-4 px-2 sm:px-6 relative select-none">
+                                  <div className="pt-3 pb-1 px-2 sm:px-4 relative select-none">
                                     {/* Connecting Progress Line & Nodes (Reference Design Style) */}
                                     <div className="relative">
                                       {/* Progress Line */}
@@ -1453,282 +1706,247 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                       </div>
                                     </div>
 
-                                    {/* FLUID ANIMATED MOVING TRUCK */}
-                                    <div
-                                      className="absolute top-0 transition-all duration-1000 ease-out -translate-x-1/2 pointer-events-none z-20 flex flex-col items-center"
-                                      style={{ left: truckLeft }}
-                                    >
-                                      <div className="relative animate-truck-bounce">
-                                        <div className="absolute -left-4 top-2 flex flex-col gap-1 animate-speed-wind pointer-events-none">
-                                          <span className="w-3 h-0.5 bg-amber-500 rounded-full" />
-                                          <span className="w-2 h-0.5 bg-emerald-500 rounded-full" />
-                                          <span className="w-3.5 h-0.5 bg-amber-400 rounded-full" />
-                                        </div>
-
-                                        <div className={`relative px-2.5 py-1 rounded-xl shadow-lg border flex items-center gap-1.5 ${
-                                          order.orderStatus === 'CANCELLED'
-                                            ? 'bg-rose-700 text-white border-rose-600'
-                                            : currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
-                                            ? 'bg-emerald-700 text-white border-emerald-600'
-                                            : 'bg-[#1E1611] text-white border-neutral-700'
-                                        }`}>
-                                          <Truck className={`w-4 h-4 ${order.orderStatus === 'CANCELLED' || currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'text-white' : 'text-amber-400'}`} />
-                                          <span className={`text-[9px] font-mono font-bold tracking-tight ${order.orderStatus === 'CANCELLED' || currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? 'text-white' : 'text-amber-300'}`}>
-                                            {order.orderStatus === 'CANCELLED' ? 'ORDER CANCELLED' : (currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED') ? 'DELIVERED' : 'IN MOTION'}
-                                          </span>
-                                        </div>
-
-                                        <div className={`w-1.5 h-1.5 mx-auto mt-0.5 rounded-full ${order.orderStatus === 'CANCELLED' ? 'bg-rose-400' : (currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED') ? 'bg-emerald-400' : 'bg-amber-500 animate-ping'}`} />
-                                      </div>
-                                    </div>
-
                                     {/* 4 STAGES / MILESTONE CARDS (Reference Design Matching) */}
-                                    <div className="grid grid-cols-4 mt-6 gap-2 text-center relative z-10">
-                                      {/* 1. Confirmation */}
-                                      <div className="flex flex-col items-center group">
-                                        <div
-                                          className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-                                            currentStage >= 0
-                                              ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
-                                              : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
-                                          }`}
-                                        >
-                                          <ShoppingCart className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                                      <div className="grid grid-cols-4 mt-3.5 gap-2 text-center relative z-10">
+                                        {/* 1. Confirmation */}
+                                        <div className="flex flex-col items-center group">
+                                          <div
+                                            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                                              currentStage >= 0
+                                                ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
+                                                : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
+                                            }`}
+                                          >
+                                            <ShoppingCart className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                                          </div>
+                                          <p className="mt-1.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Confirmation</p>
+                                          <p className="text-[10.5px] text-neutral-500 dark:text-neutral-400 mt-0.5">Order Confirmed</p>
                                         </div>
-                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Confirmation</p>
-                                        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">Order Confirmed</p>
-                                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono mt-0.5">
-                                          {new Date(order.createdAt).toLocaleDateString(undefined, {
-                                            month: 'short',
-                                            day: 'numeric',
-                                          })}
-                                        </span>
-                                      </div>
 
-                                      {/* 2. Fulfillment */}
-                                      <div className="flex flex-col items-center group">
-                                        <div
-                                          className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-                                            currentStage >= 1
-                                              ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
-                                              : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
-                                          }`}
-                                        >
-                                          <Box className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
+                                        {/* 2. Fulfillment */}
+                                        <div className="flex flex-col items-center group">
+                                          <div
+                                            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                                              currentStage >= 1
+                                                ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
+                                                : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
+                                            }`}
+                                          >
+                                            <Box className="w-4 h-4 text-neutral-700 dark:text-neutral-300" />
+                                          </div>
+                                          <p className="mt-1.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Fulfillment</p>
+                                          <p className="text-[10.5px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                            {currentStage >= 1 ? 'Packed & Processed' : 'Packing at Hub'}
+                                          </p>
                                         </div>
-                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Fulfillment</p>
-                                        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
-                                          {currentStage >= 1 ? 'Packed & Processed' : 'Packing at Hub'}
-                                        </p>
-                                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono mt-0.5">
-                                          {order.awbNumber ? 'Hub Ready' : 'In Queue'}
-                                        </span>
-                                      </div>
 
-                                      {/* 3. Transit */}
-                                      <div className="flex flex-col items-center group">
-                                        <div
-                                          className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
-                                            currentStage >= 2
-                                              ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
-                                              : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
-                                          }`}
-                                        >
-                                          <Truck className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
+                                        {/* 3. Transit */}
+                                        <div className="flex flex-col items-center group">
+                                          <div
+                                            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                                              currentStage >= 2
+                                                ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
+                                                : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
+                                            }`}
+                                          >
+                                            <Truck className="w-4 h-4 text-neutral-700 dark:text-neutral-300" />
+                                          </div>
+                                          <p className="mt-1.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Transit</p>
+                                          <p className="text-[10.5px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                            {currentStage >= 2 ? 'In Air Transit' : 'Carrier Handover'}
+                                          </p>
                                         </div>
-                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">Transit</p>
-                                        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
-                                          {currentStage >= 2 ? 'In Air Transit' : 'Carrier Handover'}
-                                        </p>
-                                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono mt-0.5">
-                                          Xpressbees Network
-                                        </span>
-                                      </div>
 
-                                      {/* 4. Delivery or Order Cancelled */}
-                                      <div className="flex flex-col items-center group">
-                                        <div
-                                          className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                                        {/* 4. Delivery or Order Cancelled */}
+                                        <div className="flex flex-col items-center">
+                                          <div
+                                            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all duration-300 shadow-sm ${
+                                              order.orderStatus === 'CANCELLED'
+                                                ? 'bg-rose-600 text-white border border-rose-600 shadow-rose-500/20'
+                                                : currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
+                                                ? 'bg-emerald-600 text-white border border-emerald-600 shadow-emerald-500/20'
+                                                : order.courierStatus === 'NDR_PENDING'
+                                                ? 'bg-amber-500 text-white border border-amber-500 shadow-amber-500/20'
+                                                : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
+                                            }`}
+                                          >
+                                            {order.orderStatus === 'CANCELLED' ? (
+                                              <XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-white" strokeWidth={2.5} />
+                                            ) : currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? (
+                                              <Check className="w-4 h-4 sm:w-5 sm:h-5 text-white" strokeWidth={2.5} />
+                                            ) : order.courierStatus === 'NDR_PENDING' ? (
+                                              <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                                            ) : (
+                                              <Home className="w-4 h-4 text-neutral-700 dark:text-neutral-300" />
+                                            )}
+                                          </div>
+
+                                          {/* Stage Title with hover tooltip that ONLY appears when hovering upon the title */}
+                                          <div className="relative group/stagetitle mt-1.5 inline-flex flex-col items-center cursor-default">
+                                            <p className="text-xs font-bold text-neutral-900 dark:text-[#EDE4DA] hover:text-emerald-600 dark:hover:text-emerald-400 transition">
+                                              {order.orderStatus === 'CANCELLED' ? 'Order Cancelled' : order.courierStatus === 'NDR_PENDING' ? 'Re-attempt' : 'Delivery'}
+                                            </p>
+                                            {/* Sleek Tooltip: strictly hidden until hovered directly on the title */}
+                                            <div className="absolute -top-7 left-1/2 -translate-x-1/2 opacity-0 group-hover/stagetitle:opacity-100 transition-opacity duration-150 pointer-events-none z-30 whitespace-nowrap bg-emerald-900 text-white text-[10px] font-medium px-2 py-0.5 rounded shadow-lg flex items-center gap-1 border border-emerald-700">
+                                              <Truck className="w-3 h-3 text-amber-300 shrink-0" />
+                                              <span>{order.orderStatus === 'CANCELLED' ? 'ORDER CANCELLED' : (currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED') ? 'DELIVERED' : order.courierStatus === 'NDR_PENDING' ? 'RE-ATTEMPT PENDING' : 'IN MOTION'}</span>
+                                            </div>
+                                          </div>
+
+                                          <p className={`text-[10.5px] mt-0.5 ${
                                             order.orderStatus === 'CANCELLED'
-                                              ? 'bg-rose-600 text-white border border-rose-600 shadow-rose-500/20'
+                                              ? 'text-rose-600 dark:text-rose-400 font-semibold'
                                               : currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
-                                              ? 'bg-emerald-600 text-white border border-emerald-600 shadow-emerald-500/20'
-                                              : 'bg-neutral-100 dark:bg-[#251D18] text-neutral-400 dark:text-neutral-500 border border-neutral-200 dark:border-[#382B21]'
-                                          }`}
-                                        >
-                                          {order.orderStatus === 'CANCELLED' ? (
-                                            <XCircle className="w-6 h-6 text-white" strokeWidth={2.5} />
-                                          ) : currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? (
-                                            <Check className="w-6 h-6 text-white" strokeWidth={2.5} />
-                                          ) : (
-                                            <Home className="w-5 h-5 text-neutral-700 dark:text-neutral-300" />
-                                          )}
+                                              ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
+                                              : order.courierStatus === 'NDR_PENDING'
+                                              ? 'text-amber-600 dark:text-amber-400 font-semibold'
+                                              : 'text-neutral-500 dark:text-neutral-400'
+                                          }`}>
+                                            {order.orderStatus === 'CANCELLED'
+                                              ? 'Refund Processed'
+                                              : currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
+                                              ? 'Delivered'
+                                              : order.courierStatus === 'NDR_PENDING'
+                                              ? 'Re-attempt Tomorrow'
+                                              : 'Doorstep Dispatch'}
+                                          </p>
                                         </div>
-                                        <p className="mt-2.5 text-xs font-bold text-neutral-900 dark:text-[#EDE4DA]">
-                                          {order.orderStatus === 'CANCELLED' ? 'Order Cancelled' : 'Delivery'}
-                                        </p>
-                                        <p className={`text-[11px] mt-0.5 ${
-                                          order.orderStatus === 'CANCELLED'
-                                            ? 'text-rose-600 dark:text-rose-400 font-semibold'
-                                            : currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
-                                            ? 'text-emerald-600 dark:text-emerald-400 font-semibold'
-                                            : 'text-neutral-500 dark:text-neutral-400'
-                                        }`}>
-                                          {order.orderStatus === 'CANCELLED'
-                                            ? 'Refund Processed'
-                                            : currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
-                                            ? 'Delivered'
-                                            : 'Doorstep Dispatch'}
-                                        </p>
-                                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-mono mt-0.5">
-                                          {order.orderStatus === 'CANCELLED'
-                                            ? 'Cancelled'
-                                            : currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED'
-                                            ? (order.deliveredAt ? new Date(order.deliveredAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Today')
-                                            : (tracking?.expectedDelivery || 'Expected soon')}
-                                        </span>
                                       </div>
                                     </div>
-                                  </div>
                                 )}
 
                                 {/* LIVE COURIER SCAN TIMELINE */}
-                                <div className="pt-4 border-t border-neutral-100 dark:border-[#2C211A] space-y-3">
-                                  <div className="flex items-center justify-between">
-                                    <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-                                      Detailed Hub Milestones
-                                    </p>
-                                    <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
-                                      Automated telemetry from Xpressbees Logistics
-                                    </span>
-                                  </div>
-
-                                  {isTrackingLoading ? (
-                                    <div className="py-6 flex items-center justify-center gap-2 text-neutral-400 dark:text-neutral-500 text-xs">
-                                      <Loader2 className="w-4 h-4 animate-spin text-amber-600 dark:text-amber-400" />
-                                      <span>Fetching live courier updates...</span>
+                                  <div className="pt-3 border-t border-neutral-100 dark:border-[#2C211A] space-y-2">
+                                    <div className="flex items-center justify-between">
+                                      <p className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                                        Detailed Hub Milestones
+                                      </p>
+                                      <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                                        Automated telemetry from Xpressbees Logistics
+                                      </span>
                                     </div>
-                                  ) : currentView === 'return' && retTrack ? (
-                                    /* REVERSE MILESTONES (Amazon Return/Exchange style) */
-                                    <div className="space-y-3 relative before:absolute before:top-2 before:bottom-2 before:left-[11px] before:w-0.5 before:bg-neutral-200 dark:before:bg-[#2C211A] pl-1">
-                                      {retTrack.milestones.map((m: any, idx: number) => (
-                                        <div key={idx} className="relative flex items-start gap-3">
-                                          <div className={`w-6 h-6 rounded-full text-white flex items-center justify-center z-10 shrink-0 shadow-2xs ${
-                                            m.status === 'REFUNDED' || m.status === 'EXCHANGE_DISPATCHED'
-                                              ? 'bg-emerald-600'
-                                              : m.status === 'REJECTED'
-                                              ? 'bg-rose-600'
-                                              : 'bg-rose-500'
-                                          }`}>
-                                            <Check className="w-3.5 h-3.5" />
-                                          </div>
-                                          <div className="bg-neutral-50/80 dark:bg-[#231A14] p-3 rounded-xl border border-neutral-200/80 dark:border-[#2C211A] shadow-2xs flex-1">
-                                            <div className="flex flex-wrap items-center justify-between gap-1">
-                                              <p className="font-semibold text-neutral-900 dark:text-[#EDE4DA] text-xs">{m.title}</p>
-                                              <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500">
-                                                {m.time}
-                                              </span>
-                                            </div>
-                                            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5 flex items-center gap-1">
-                                              <MapPin className="w-3 h-3 text-neutral-400 dark:text-neutral-500" />
-                                              <span>{m.location}</span>
-                                            </p>
-                                            {m.description && (
-                                              <p className="text-[11px] text-neutral-600 dark:text-neutral-300 mt-1 pl-4 border-l border-rose-200 dark:border-rose-900/40">
-                                                {m.description}
-                                              </p>
-                                            )}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : (() => {
-                                    const isDelivered = currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED';
-                                    const rawMilestones = tracking?.milestones || [];
-                                    const hasDeliveredMilestone = rawMilestones.some((m: any) => m.status === 'DELIVERED' || m.title?.toLowerCase().includes('delivered'));
-                                    const effectiveMilestones = [...rawMilestones];
-                                    if (isDelivered && !hasDeliveredMilestone) {
-                                      effectiveMilestones.push({
-                                        status: 'DELIVERED',
-                                        title: 'Delivered at Customer Doorstep',
-                                        time: order.deliveredAt
-                                          ? new Date(order.deliveredAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-                                          : 'Delivered Today',
-                                        location: (order.city && order.state) ? `${order.city}, ${order.state}` : (order.city || 'Customer Address'),
-                                      });
-                                    }
 
-                                    return effectiveMilestones.length > 0 ? (
-                                      <div className="space-y-3 relative before:absolute before:top-2 before:bottom-2 before:left-[11px] before:w-0.5 before:bg-neutral-200 dark:before:bg-[#2C211A] pl-1">
-                                        {effectiveMilestones.map((m: any, idx: number) => (
-                                          <div key={idx} className="relative flex items-start gap-3">
-                                            <div className="w-6 h-6 rounded-full bg-emerald-600 dark:bg-emerald-500 text-white flex items-center justify-center z-10 shrink-0 shadow-2xs">
-                                              <Check className="w-3.5 h-3.5" />
+                                    {isTrackingLoading ? (
+                                      <div className="py-4 flex items-center justify-center gap-2 text-neutral-400 dark:text-neutral-500 text-xs">
+                                        <Loader2 className="w-4 h-4 animate-spin text-amber-600 dark:text-amber-400" />
+                                        <span>Fetching live courier updates...</span>
+                                      </div>
+                                    ) : currentView === 'return' && retTrack ? (
+                                      /* REVERSE MILESTONES (Compact row format) */
+                                      <div className="space-y-1.5 relative before:absolute before:top-2 before:bottom-2 before:left-[9px] before:w-0.5 before:bg-neutral-200 dark:before:bg-[#2C211A] pl-0.5">
+                                        {retTrack.milestones.map((m: any, idx: number) => (
+                                          <div key={idx} className="relative flex items-center gap-2.5">
+                                            <div className={`w-4 h-4 rounded-full text-white flex items-center justify-center z-10 shrink-0 ${
+                                              m.status === 'REFUNDED' || m.status === 'EXCHANGE_DISPATCHED'
+                                                ? 'bg-emerald-600'
+                                                : m.status === 'REJECTED'
+                                                ? 'bg-rose-600'
+                                                : 'bg-rose-500'
+                                            }`}>
+                                              <Check className="w-2.5 h-2.5" />
                                             </div>
-                                            <div className="bg-neutral-50/80 dark:bg-[#231A14] p-3 rounded-xl border border-neutral-200/80 dark:border-[#2C211A] shadow-2xs flex-1">
-                                              <div className="flex flex-wrap items-center justify-between gap-1">
-                                                <p className="font-semibold text-neutral-900 dark:text-[#EDE4DA] text-xs">{m.title}</p>
-                                                <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500">
-                                                  {m.time}
+                                            <div className="bg-neutral-50/80 dark:bg-[#231A14] py-1.5 px-3 rounded-lg border border-neutral-200/80 dark:border-[#2C211A] flex-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-xs">
+                                              <div className="flex items-center gap-2 min-w-0">
+                                                <span className="font-semibold text-neutral-900 dark:text-[#EDE4DA] truncate">{m.title}</span>
+                                                <span className="text-[11px] text-neutral-400 dark:text-neutral-500 flex items-center gap-0.5 shrink-0">
+                                                  <MapPin className="w-3 h-3" />
+                                                  <span>{m.location}</span>
                                                 </span>
                                               </div>
-                                              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5 flex items-center gap-1">
-                                                <MapPin className="w-3 h-3 text-neutral-400 dark:text-neutral-500" />
-                                                <span>{m.location}</span>
-                                              </p>
+                                              <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 shrink-0">
+                                                {m.time}
+                                              </span>
                                             </div>
                                           </div>
                                         ))}
                                       </div>
-                                    ) : (
-                                      <div className="p-4 rounded-xl bg-neutral-50 dark:bg-[#231A14] border border-neutral-200/60 dark:border-[#2C211A] text-center text-xs text-neutral-500 dark:text-neutral-400">
-                                        Shipment manifested and waiting for courier gateway scan.
-                                      </div>
-                                    );
-                                  })()}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                                    ) : (() => {
+                                      const isDelivered = currentStage === 3 || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED';
+                                      const rawMilestones = tracking?.milestones || [];
+                                      const hasDeliveredMilestone = rawMilestones.some((m: any) => m.status === 'DELIVERED' || m.title?.toLowerCase().includes('delivered'));
+                                      const effectiveMilestones = [...rawMilestones];
+                                      if (isDelivered && !hasDeliveredMilestone) {
+                                        effectiveMilestones.push({
+                                          status: 'DELIVERED',
+                                          title: 'Delivered at Customer Doorstep',
+                                          time: order.deliveredAt
+                                            ? new Date(order.deliveredAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                            : 'Delivered Today',
+                                          location: (order.city && order.state) ? `${order.city}, ${order.state}` : (order.city || 'Customer Address'),
+                                        });
+                                      }
 
-                        {/* DROPDOWN 2: ACTUAL PRODUCT REVIEWS DROPDOWN */}
-                        {activeTab === 'reviews' && (
-                          <div className="pt-2 animate-in fade-in duration-200 space-y-3">
-                            <div className="bg-white dark:bg-[#1A1410] rounded-2xl p-5 border border-neutral-200/90 dark:border-[#2C211A] shadow-sm space-y-4">
-                              <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-[#2C211A]">
+                                      return effectiveMilestones.length > 0 ? (
+                                        <div className="space-y-1.5 relative before:absolute before:top-2 before:bottom-2 before:left-[9px] before:w-0.5 before:bg-neutral-200 dark:before:bg-[#2C211A] pl-0.5">
+                                          {effectiveMilestones.map((m: any, idx: number) => (
+                                            <div key={idx} className="relative flex items-center gap-2.5">
+                                              <div className="w-4 h-4 rounded-full bg-emerald-600 dark:bg-emerald-500 text-white flex items-center justify-center z-10 shrink-0">
+                                                <Check className="w-2.5 h-2.5" />
+                                              </div>
+                                              <div className="bg-neutral-50/80 dark:bg-[#231A14] py-1.5 px-3 rounded-lg border border-neutral-200/80 dark:border-[#2C211A] flex-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-xs">
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                  <span className="font-semibold text-neutral-900 dark:text-[#EDE4DA] truncate">{m.title}</span>
+                                                  <span className="text-[11px] text-neutral-400 dark:text-neutral-500 flex items-center gap-0.5 shrink-0">
+                                                    <MapPin className="w-3 h-3" />
+                                                    <span>{m.location}</span>
+                                                  </span>
+                                                </div>
+                                                <span className="text-[10px] font-mono text-neutral-400 dark:text-neutral-500 shrink-0">
+                                                  {m.time}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <div className="p-3 rounded-xl bg-neutral-50 dark:bg-[#231A14] border border-neutral-200/60 dark:border-[#2C211A] text-center text-xs text-neutral-500 dark:text-neutral-400">
+                                          Shipment manifested and waiting for courier gateway scan.
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* DROPDOWN 2: ACTUAL PRODUCT REVIEWS DROPDOWN */}
+                          {activeTab === 'reviews' && (
+                          <div className="pt-1.5 animate-in fade-in duration-200 space-y-2.5">
+                            <div className="bg-white dark:bg-[#1A1410] rounded-xl p-3.5 sm:p-4 border border-neutral-200/90 dark:border-[#2C211A] shadow-xs space-y-3">
+                              <div className="flex items-center justify-between pb-2.5 border-b border-neutral-100 dark:border-[#2C211A]">
                                 <div>
-                                  <h4 className="font-serif text-sm font-bold text-neutral-900 dark:text-[#EDE4DA] flex items-center gap-1.5">
-                                    <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                                  <h4 className="font-serif text-xs sm:text-sm font-bold text-neutral-900 dark:text-[#EDE4DA] flex items-center gap-1.5">
+                                    <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                                     <span>Rate & Review Purchased Items</span>
                                   </h4>
-                                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+                                  <p className="text-[10.5px] text-neutral-500 dark:text-neutral-400 mt-0.5">
                                     Share real feedback for products ordered in this delivery.
                                   </p>
                                 </div>
-                                <span className="text-[10px] font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/60 px-2.5 py-1 rounded-full">
-                                  Verified Order #{order.orderNumber}
+                                <span className="text-[10px] font-semibold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/60 px-2 py-0.5 rounded-full">
+                                  Verified #{order.orderNumber}
                                 </span>
                               </div>
 
-                              <div className="space-y-2.5">
+                              <div className="space-y-2">
                                 {order.items.map((item) => {
                                   const existingReview = userReviewsMap[item.productId];
                                   return (
                                     <div
                                       key={item.id}
-                                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-neutral-50/80 dark:bg-[#231A14] border border-neutral-200/70 dark:border-[#2C211A] hover:border-neutral-300 dark:hover:border-[#3D2C20] transition"
+                                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2.5 sm:p-3 rounded-xl bg-neutral-50/80 dark:bg-[#231A14] border border-neutral-200/70 dark:border-[#2C211A] hover:border-neutral-300 dark:hover:border-[#3D2C20] transition"
                                     >
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#1A1410] border border-neutral-200 dark:border-[#2C211A] flex items-center justify-center shrink-0 shadow-2xs">
-                                          <Package className="w-5 h-5 text-neutral-400 dark:text-neutral-500" />
+                                      <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-lg bg-white dark:bg-[#1A1410] border border-neutral-200 dark:border-[#2C211A] flex items-center justify-center shrink-0 shadow-2xs">
+                                          <Package className="w-4 h-4 text-neutral-400 dark:text-neutral-500" />
                                         </div>
                                         <div>
                                           <p className="font-medium text-xs text-neutral-900 dark:text-[#EDE4DA] leading-snug">
                                             {item.productName}
                                           </p>
-                                          <div className="flex items-center gap-2 mt-0.5">
-                                            <span className="text-[11px] font-bold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 rounded">
+                                          <div className="flex items-center gap-1.5 mt-0.5">
+                                            <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.2 rounded">
                                               {item.quantity} {item.quantity > 1 ? 'units' : 'unit'}
                                             </span>
                                             <span className="text-[10px] text-neutral-300 dark:text-neutral-600">•</span>
@@ -1786,47 +2004,41 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                           </div>
                         )}
 
-                        {/* ORDER FOOTER / SUMMARY DETAILS */}
-                        <div className="p-3.5 rounded-xl bg-white dark:bg-[#1A1410] border border-neutral-200/80 dark:border-[#2C211A] flex flex-wrap justify-between items-center text-xs gap-3">
-                          <div className="flex items-center gap-2 text-neutral-600 dark:text-neutral-400">
-                            <span>Payment: <strong className="text-neutral-800 dark:text-[#EDE4DA]">{order.paymentMethod}</strong></span>
-                            <span className="text-neutral-300 dark:text-neutral-600">•</span>
-                            {order.refundStatus === 'REFUNDED' ? (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300">
-                                REFUNDED
+                        {/* UNIFIED COMPACT ORDER FOOTER: PAYMENT, TOTAL & ACTIONS */}
+                        <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-[#1A1410] border border-neutral-200/80 dark:border-[#2C211A] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                          {/* Left: Payment Method, Status & Total */}
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <div className="flex items-center gap-1.5 text-neutral-600 dark:text-neutral-400">
+                              <span>Payment: <strong className="text-neutral-800 dark:text-[#EDE4DA]">{order.paymentMethod}</strong></span>
+                              {order.refundStatus === 'REFUNDED' ? (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300">
+                                  REFUNDED
+                                </span>
+                              ) : effectivePaymentStatus === 'PAID' || isOrderDelivered ? (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300">
+                                  PAID
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">
+                                  COD PENDING
+                                </span>
+                              )}
+                            </div>
+
+                            <span className="text-neutral-300 dark:text-neutral-600 hidden sm:inline">•</span>
+
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-neutral-500 dark:text-neutral-400">Order Total:</span>
+                              <span className="font-serif text-sm font-bold text-neutral-900 dark:text-[#EDE4DA]">
+                                ₹{order.totalAmount.toLocaleString()}
                               </span>
-                            ) : order.paymentStatus === 'PAID' || order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED' ? (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300">
-                                PAID
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300">
-                                COD PENDING
-                              </span>
-                            )}
+                            </div>
                           </div>
 
-                          <div className="flex items-center gap-3">
-                            <span className="text-neutral-500 dark:text-neutral-400">Order Total:</span>
-                            <span className="font-serif text-sm font-bold text-neutral-900 dark:text-[#EDE4DA]">
-                              ₹{order.totalAmount.toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* ORDER CUSTOMER ACTIONS ROW: CANCEL, RETURN, EXCHANGE */}
-                        <div className="p-3.5 rounded-xl bg-[#FAF9F6] dark:bg-[#1A130E] border border-neutral-200/70 dark:border-[#2C211A] flex flex-wrap justify-between items-center text-xs gap-3">
-                          <div className="flex items-center gap-2">
-                            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                            <span className="text-[11px] text-neutral-600 dark:text-neutral-400">
-                              Aura Luxe Guarantee • Free Courier Pickup & Instant Refund
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {/* Customer Cancel Order / Cancel Return Button */}
+                          {/* Right: Primary Customer Actions (Cancel, Return or Exchange) */}
+                          <div className="flex items-center gap-2 flex-wrap sm:justify-end">
+                            {/* Cancel Return / Exchange if currently in progress */}
                             {hasReturnExchange ? (
-                              /* When Return or Exchange is active and not yet completed, show Cancel Return button */
                               (retTrack?.currentStatus !== 'COMPLETED' && order.orderStatus !== 'RETURNED' && order.orderStatus !== 'EXCHANGED') && (
                                 <button
                                   type="button"
@@ -1840,21 +2052,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                                         if (active) {
                                           handleCancelReturnRequest(order.id, active.id);
                                         } else {
-                                          alert('No active return request to cancel.');
+                                          alert('No active return or exchange request to cancel.');
                                         }
                                       } catch (e: any) {
-                                        alert(e.message || 'Failed to cancel return');
+                                        alert(e.message || 'Failed to cancel request');
                                       }
                                     }
                                   }}
                                   className="px-3.5 py-1.5 rounded-full border border-red-300 dark:border-red-900/60 bg-red-50/50 dark:bg-red-950/30 text-red-700 dark:text-red-400 text-xs font-semibold hover:bg-red-100 transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
                                 >
                                   <XCircle className="w-3.5 h-3.5" />
-                                  <span>Cancel Return</span>
+                                  <span>{retTrack?.type === 'EXCHANGE' ? 'Cancel Exchange' : 'Cancel Return'}</span>
                                 </button>
                               )
                             ) : (
-                              order.orderStatus !== 'DELIVERED' && order.courierStatus !== 'DELIVERED' && order.orderStatus !== 'CANCELLED' && order.orderStatus !== 'RETURNED' && (
+                              /* Cancel Order if order is not delivered and not cancelled */
+                              !isOrderDelivered && !isOrderCancelled && effectiveOrderStatus !== 'RETURNED' && (
                                 <button
                                   type="button"
                                   onClick={() => handleOpenCancelModal(order)}
@@ -1866,31 +2079,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                               )
                             )}
 
-                            {/* Return or Exchange (Only for delivered items with NO active return/exchange) */}
-                            {(order.orderStatus === 'DELIVERED' || order.courierStatus === 'DELIVERED') && !hasReturnExchange && (
+                            {/* Single Clean Return or Exchange button at the bottom */}
+                            {isOrderDelivered && !hasReturnExchange && (
                               <button
                                 type="button"
                                 onClick={() => setReturnModalOrder(order)}
-                                className="px-3.5 py-1.5 rounded-full border border-rose-300 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 font-bold text-xs hover:bg-rose-100 transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                                className="px-4 py-1.5 rounded-full border border-rose-300 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 font-bold text-xs hover:bg-rose-100 transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
                               >
                                 <RotateCcw className="w-3.5 h-3.5" />
                                 <span>Return or Exchange</span>
-                              </button>
-                            )}
-
-                            {/* View Return/Exchange Live Tracking (Only if tracking accordion is NOT currently open) */}
-                            {hasReturnExchange && activeTab !== 'tracking' && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  toggleOrderCard(order.id);
-                                  toggleOrderSubDropdown(order, 'tracking');
-                                  setTrackingViewMode((prev) => ({ ...prev, [order.id]: 'return' }));
-                                }}
-                                className="px-3.5 py-1.5 rounded-full border border-rose-400 dark:border-rose-800 bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 transition shadow-2xs flex items-center gap-1.5 cursor-pointer"
-                              >
-                                <RotateCcw className="w-3.5 h-3.5" />
-                                <span>Track Return & Refund</span>
                               </button>
                             )}
                           </div>
@@ -2537,6 +2734,210 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* NDR INCOMPLETE ADDRESS UPDATE MODAL */}
+      {editingOrderAddress && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="relative bg-white dark:bg-[#1A1410] rounded-3xl max-w-md w-full p-6 shadow-2xl border border-neutral-200 dark:border-[#2C211A] space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-[#2C211A]">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 flex items-center justify-center">
+                  <MapPin className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-base font-bold text-neutral-900 dark:text-[#EDE4DA]">
+                    Update Delivery Address
+                  </h3>
+                  <p className="text-[11px] text-neutral-500">Order #{editingOrderAddress.orderNumber}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingOrderAddress(null)}
+                className="w-7 h-7 rounded-full bg-neutral-100 dark:bg-[#251D18] flex items-center justify-center text-neutral-500 hover:text-neutral-900 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200">
+              We tried delivering your product, but couldn't reach your address. Please verify or update your delivery address below for successful re-attempt.
+            </div>
+
+            <form onSubmit={handleSaveOrderAddress} className="space-y-3 text-xs">
+              <div>
+                <label className="font-semibold text-neutral-700 dark:text-neutral-300 block mb-1">
+                  Complete Address Line (Flat / Building / Street / Landmark):
+                </label>
+                <textarea
+                  rows={3}
+                  value={orderAddrLine}
+                  onChange={(e) => setOrderAddrLine(e.target.value)}
+                  placeholder="e.g. Flat 402, Green Heights, Near City Mall, 5th Cross"
+                  className="w-full p-2.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#251D18] text-xs resize-none"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 block mb-1">City:</label>
+                  <input
+                    type="text"
+                    value={orderCity}
+                    onChange={(e) => setOrderCity(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#251D18] text-xs"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-neutral-700 dark:text-neutral-300 block mb-1">State:</label>
+                  <input
+                    type="text"
+                    value={orderState}
+                    onChange={(e) => setOrderState(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#251D18] text-xs"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-semibold text-neutral-700 dark:text-neutral-300 block mb-1">PIN Code:</label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={orderPincode}
+                  onChange={(e) => setOrderPincode(e.target.value.replace(/\D/g, ''))}
+                  className="w-full p-2.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#251D18] text-xs font-mono"
+                  required
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingOrderAddress(null)}
+                  className="px-4 py-2 rounded-full border border-neutral-300 text-neutral-700 font-semibold hover:bg-neutral-100 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingOrderAddress}
+                  className="px-5 py-2 rounded-full bg-amber-600 hover:bg-amber-700 text-white font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer"
+                >
+                  {savingOrderAddress ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                  <span>Save & Re-route Shipment</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT USER PROFILE MODAL */}
+      {isEditProfileOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => !editSaving && setIsEditProfileOpen(false)}
+        >
+          <div
+            className="relative bg-white dark:bg-[#1A1410] rounded-3xl max-w-md w-full shadow-2xl border border-neutral-200 dark:border-[#2C211A] p-6 space-y-5 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-[#2C211A]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 flex items-center justify-center">
+                  <UserIcon className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-base font-semibold text-neutral-900 dark:text-[#EDE4DA]">
+                    Edit Profile Details
+                  </h3>
+                  <p className="text-[11px] text-neutral-400">Update your account name & phone number</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={editSaving}
+                onClick={() => setIsEditProfileOpen(false)}
+                className="w-7 h-7 rounded-full bg-neutral-100 dark:bg-[#251D18] hover:bg-neutral-200 text-neutral-500 flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {editError && (
+              <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
+              <div>
+                <label className="font-semibold text-neutral-800 dark:text-[#EDE4DA] block mb-1">
+                  Full Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="e.g. Test 1 / Harshan R"
+                  className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#251D18] text-neutral-900 dark:text-[#EDE4DA] placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold text-neutral-800 dark:text-[#EDE4DA] block mb-1">
+                  Registered Email Address
+                </label>
+                <input
+                  type="email"
+                  disabled
+                  value={user?.email || ''}
+                  className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-[#382B21] bg-neutral-100 dark:bg-[#1E1712] text-neutral-500 dark:text-neutral-400 text-xs cursor-not-allowed"
+                />
+                <span className="text-[10px] text-neutral-400 mt-0.5 block">Email address cannot be changed for security purposes.</span>
+              </div>
+
+              <div>
+                <label className="font-semibold text-neutral-800 dark:text-[#EDE4DA] block mb-1">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  placeholder="e.g. +91 9900876787"
+                  className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#251D18] text-neutral-900 dark:text-[#EDE4DA] placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-3 border-t border-neutral-100 dark:border-[#2C211A]">
+                <button
+                  type="button"
+                  disabled={editSaving}
+                  onClick={() => setIsEditProfileOpen(false)}
+                  className="px-4 py-2 rounded-full border border-neutral-300 dark:border-[#382B21] text-xs font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-[#251D18] transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editSaving}
+                  className="px-5 py-2 rounded-full bg-rose-900 hover:bg-rose-800 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer"
+                >
+                  {editSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                  <span>Save Profile</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

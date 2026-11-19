@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { WishlistProvider } from './context/WishlistContext';
 import { BrowsingHistoryProvider } from './context/BrowsingHistoryContext';
+import { SettingsProvider } from './context/SettingsContext';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { CartDrawer } from './components/CartDrawer';
@@ -103,10 +104,11 @@ export const App: React.FC = () => {
 
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <WishlistProvider>
-          <CartProvider>
-            <BrowsingHistoryProvider>
+      <SettingsProvider>
+        <AuthProvider>
+          <WishlistProvider>
+            <CartProvider>
+              <BrowsingHistoryProvider>
               <div className="min-h-screen w-full max-w-full overflow-x-hidden flex flex-col bg-[#FAF9F6] dark:bg-[#120E0C] text-neutral-800 dark:text-[#EDE4DA] font-sans selection:bg-rose-100 selection:text-rose-900 transition-colors duration-200">
                 {/* Header/Navbar only for main shopping storefront, hidden on Login, Register and Admin Portal */}
                 {!isDedicatedAuthOrAdmin && (
@@ -153,7 +155,8 @@ export const App: React.FC = () => {
           </CartProvider>
         </WishlistProvider>
       </AuthProvider>
-    </ThemeProvider>
+    </SettingsProvider>
+  </ThemeProvider>
   );
 };
 

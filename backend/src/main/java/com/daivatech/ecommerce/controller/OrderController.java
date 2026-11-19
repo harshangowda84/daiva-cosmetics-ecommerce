@@ -104,4 +104,21 @@ public class OrderController {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
+
+    /**
+     * Customer updates delivery address for an order (e.g. upon incomplete address NDR)
+     */
+    @PutMapping("/{orderId}/address")
+    public ResponseEntity<?> updateOrderAddress(@PathVariable Long orderId, @RequestBody Map<String, String> body) {
+        try {
+            String addressLine = body.get("addressLine");
+            String city = body.get("city");
+            String state = body.get("state");
+            String pincode = body.get("pincode");
+            CustomerOrder updated = orderService.updateDeliveryAddress(orderId, addressLine, city, state, pincode);
+            return ResponseEntity.ok(updated);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
 }

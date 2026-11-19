@@ -42,7 +42,8 @@ import {
   RotateCcw,
   EyeOff,
   MessageSquare,
-  AlertTriangle
+  AlertTriangle,
+  FileText
 } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api } from '../services/api';
@@ -50,6 +51,7 @@ import { useAuth } from '../context/AuthContext';
 import { Product, CustomerOrder, ZohoStatus, UploadedImageInfo, StockMovement, ProductBatch, ShipmentTracking, ProductReview, OrderReturnExchange } from '../types';
 import { getFullImageUrl, handleImageError } from '../utils/image';
 import { XpressBeesSimulatorModal } from '../components/XpressBeesSimulatorModal';
+import { AdminFooterPoliciesEditor } from '../components/AdminFooterPoliciesEditor';
 
 interface AdminPageProps {
   onNavigate: (page: string, param?: string) => void;
@@ -71,7 +73,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const [loginError, setLoginError] = useState('');
 
   // Dashboard states
-  const [activeTab, setActiveTab] = useState<'inventory' | 'orders' | 'zoho' | 'ledger' | 'reviews' | 'returns'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'orders' | 'zoho' | 'ledger' | 'reviews' | 'returns' | 'footer_policies'>('inventory');
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [zohoStatus, setZohoStatus] = useState<ZohoStatus | null>(null);
@@ -1212,6 +1214,18 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
           >
             <RotateCcw className="w-4 h-4 text-rose-600" />
             <span>Returns & Exchanges ({allReturns.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('footer_policies')}
+            className={`px-5 py-3 rounded-t-xl transition flex items-center gap-2 ${
+              activeTab === 'footer_policies'
+                ? 'bg-white dark:bg-[#1A1410] border-t border-l border-r border-neutral-200 dark:border-[#2C211A] text-purple-700 dark:text-purple-400 shadow-sm'
+                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-white'
+            }`}
+          >
+            <FileText className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            <span>Footer & Policies CMS</span>
           </button>
         </div>
 
@@ -2420,6 +2434,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
               </table>
             </div>
           </div>
+        )}
+
+        {/* TAB 7: FOOTER & LEGAL POLICIES CMS */}
+        {activeTab === 'footer_policies' && (
+          <AdminFooterPoliciesEditor onNavigate={onNavigate} showToast={showToast} />
         )}
       </main>
 

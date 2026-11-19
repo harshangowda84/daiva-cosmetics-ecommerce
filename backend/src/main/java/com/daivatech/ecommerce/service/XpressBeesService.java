@@ -343,15 +343,56 @@ public class XpressBeesService {
                             "location", (order.getCity() != null && !order.getCity().isBlank()) ? order.getCity() + ", " + order.getState() : "Customer Address"
                     ));
                     expectedDelivery = "Delivered on " + delTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"));
-                } else if ("RTO_INITIATED".equalsIgnoreCase(order.getCourierStatus()) || "RTO_IN_TRANSIT".equalsIgnoreCase(order.getCourierStatus()) || ("CANCELLED".equalsIgnoreCase(order.getOrderStatus()) && order.getAwbNumber() != null)) {
-                    currentStatus = "RTO_IN_TRANSIT";
+                } else if ("NDR_PENDING".equalsIgnoreCase(order.getCourierStatus()) || "UNDELIVERED_ATTEMPT".equalsIgnoreCase(order.getCourierStatus())) {
+                    currentStatus = "NDR_PENDING";
+                    String reason = order.getDeliveryFailureReason() != null ? order.getDeliveryFailureReason() : "CUSTOMER_UNREACHABLE";
+                    int attempt = order.getDeliveryAttempts() != null ? order.getDeliveryAttempts() : 1;
+                    String milestoneTitle = "Delivery Attempt #" + attempt + " Unsuccessful";
+                    String customerNdrMessage = "We attempted delivery. We will re-attempt delivery.";
+
+                    if (reason.contains("CUSTOMER_UNREACHABLE") || reason.contains("NOT_PICKING")) {
+                        milestoneTitle = "Delivery Attempt Failed: Customer Unreachable (Attempt #" + attempt + " of 3)";
+                        customerNdrMessage = "We tried calling you, but you did not respond. We will re-attempt delivery tomorrow.";
+                    } else if (reason.contains("CUSTOMER_POSTPONED") || reason.contains("CASH_NOT_READY")) {
+                        milestoneTitle = "Delivery Postponed by Customer (Attempt #" + attempt + ")";
+                        customerNdrMessage = "Delivery postponed as requested. We will re-attempt delivery tomorrow.";
+                    } else if (reason.contains("PREMISES_LOCKED")) {
+                        milestoneTitle = "Delivery Attempt Failed: Premises Locked (Attempt #" + attempt + " of 3)";
+                        customerNdrMessage = "Doorstep delivery attempted, but premises were locked. We will re-attempt delivery on the next business day.";
+                    } else if (reason.contains("ADDRESS_INCOMPLETE") || reason.contains("INCORRECT_ADDRESS")) {
+                        milestoneTitle = "Delivery Issue: Address Incomplete / Landmark Mismatch";
+                        customerNdrMessage = "We tried delivering your product, but couldn't reach your address. Please verify or update your delivery address.";
+                    }
+
                     milestones.add(Map.of(
-                            "status", "RTO_IN_TRANSIT",
-                            "title", "Cancelled in Transit - Package Returning to Hub (RTO)",
+                            "status", "NDR_PENDING",
+                            "title", milestoneTitle,
                             "time", now.format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")),
-                            "location", "Xpressbees Reverse Transit Network"
+                            "location", (order.getCity() != null && !order.getCity().isBlank()) ? order.getCity() : warehouseCity,
+                            "description", customerNdrMessage
                     ));
-                    expectedDelivery = "Cancelled by Customer • Return in Transit";
+                    expectedDelivery = "Re-attempt Scheduled: Tomorrow";
+                } else if ("OUT_FOR_DELIVERY".equalsIgnoreCase(order.getCourierStatus())) {
+                    currentStatus = "OUT_FOR_DELIVERY";
+                    int attempt = order.getDeliveryAttempts() != null ? order.getDeliveryAttempts() : 1;
+                    milestones.add(Map.of(
+                            "status", "OUT_FOR_DELIVERY",
+                            "title", attempt > 1 ? "Out for Delivery Re-attempt (Attempt #" + attempt + ")" : "Out for Doorstep Delivery",
+                            "time", now.format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")),
+                            "location", (order.getCity() != null && !order.getCity().isBlank()) ? order.getCity() + " Hub" : warehouseCity,
+                            "description", "Courier executive assigned for doorstep delivery."
+                    ));
+                    expectedDelivery = "Out for Delivery Today";
+                } else if ("CANCELLED".equalsIgnoreCase(order.getOrderStatus()) || "CANCELLED".equalsIgnoreCase(order.getCourierStatus()) || "RTO_INITIATED".equalsIgnoreCase(order.getCourierStatus()) || "RTO_IN_TRANSIT".equalsIgnoreCase(order.getCourierStatus())) {
+                    currentStatus = "CANCELLED";
+                    milestones.add(Map.of(
+                            "status", "CANCELLED",
+                            "title", "Order Cancelled by Customer",
+                            "time", now.format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a")),
+                            "location", "Customer Request",
+                            "description", "Order cancellation confirmed and 100% refund initiated."
+                    ));
+                    expectedDelivery = "Order Cancelled & Refund Initiated";
                 } else if ("UNDELIVERED".equalsIgnoreCase(order.getCourierStatus()) || "DELIVERY_FAILED".equalsIgnoreCase(order.getOrderStatus())) {
                     currentStatus = "DELIVERY_FAILED";
                     milestones.add(Map.of(
@@ -371,6 +412,32 @@ public class XpressBeesService {
             trackInfo.put("expectedDelivery", expectedDelivery);
             trackInfo.put("milestones", milestones);
             trackInfo.put("trackingUrl", trackingUrlTemplate.replace("{awb}", safeAwb));
+
+            if (order != null && ("NDR_PENDING".equalsIgnoreCase(order.getCourierStatus()) || "UNDELIVERED_ATTEMPT".equalsIgnoreCase(order.getCourierStatus()))) {
+                Map<String, Object> ndr = new HashMap<>();
+                String reason = order.getDeliveryFailureReason() != null ? order.getDeliveryFailureReason() : "CUSTOMER_UNREACHABLE";
+                int attempt = order.getDeliveryAttempts() != null ? order.getDeliveryAttempts() : 1;
+                String msg = "We attempted delivery. We will re-attempt delivery tomorrow.";
+                boolean needsAddr = false;
+
+                if (reason.contains("CUSTOMER_UNREACHABLE") || reason.contains("NOT_PICKING")) {
+                    msg = "We tried calling you, but you did not respond. We will re-attempt delivery tomorrow.";
+                } else if (reason.contains("CUSTOMER_POSTPONED") || reason.contains("CASH_NOT_READY")) {
+                    msg = "Delivery postponed as requested. We will re-attempt delivery tomorrow.";
+                } else if (reason.contains("PREMISES_LOCKED")) {
+                    msg = "Doorstep delivery attempted, but premises were locked. We will re-attempt delivery on the next business day.";
+                } else if (reason.contains("ADDRESS_INCOMPLETE") || reason.contains("INCORRECT_ADDRESS")) {
+                    msg = "We tried delivering your product, but couldn't reach your address. Please verify or update your delivery address.";
+                    needsAddr = true;
+                }
+
+                ndr.put("reasonCode", reason);
+                ndr.put("attempts", attempt);
+                ndr.put("customerMessage", msg);
+                ndr.put("needsAddressUpdate", needsAddr);
+                trackInfo.put("ndrInfo", ndr);
+            }
+
             return trackInfo;
         }
 
@@ -427,72 +494,186 @@ public class XpressBeesService {
         LocalDateTime baseTime = (item != null && item.getCreatedAt() != null) ? item.getCreatedAt() : LocalDateTime.now().minusHours(4);
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a");
 
-        // Milestone 1: Return Initiated
-        milestones.add(Map.of(
-                "status", "REQUESTED",
-                "title", (type.equals("EXCHANGE") ? "Exchange" : "Return") + " Initiated",
-                "time", baseTime.format(dtf),
-                "location", (order != null && order.getCity() != null) ? order.getCity() : "Customer Location",
-                "description", "Reverse AWB #" + safeAwb + " generated. 7-Day Easy Return Guarantee applied."
-        ));
-
-        // Milestone 2: Courier Agent Assigned for Pickup
-        milestones.add(Map.of(
-                "status", "PICKUP_SCHEDULED",
-                "title", "Return Examine Scheduled",
-                "time", baseTime.plusHours(2).format(dtf),
-                "location", (order != null && order.getCity() != null) ? order.getCity() + " Logistics Hub" : "Regional Hub",
-                "description", "Doorstep examination assigned to Xpressbees courier agent. Keep container and batch code ready."
-        ));
-
-        int stageIndex = 0; // 0: Return Initiated, 1: Return Examine, 2: Return Pick Success, 3: Refund Issued
+        int stageIndex = 0;
         String currentStatus = "REQUESTED";
         String nextActionEstimate = "Return initiated • Agent assigned for doorstep examination";
 
-        if ("PICKUP_SCHEDULED".equalsIgnoreCase(courierStatus) || "REQUESTED".equalsIgnoreCase(courierStatus)) {
-            stageIndex = 0;
-            currentStatus = "REQUESTED";
-            nextActionEstimate = "Return initiated • Pickup scheduled for Tomorrow 10:00 AM - 02:00 PM";
-        }
+        if ("EXCHANGE".equalsIgnoreCase(type)) {
+            // === COSMETICS DOORSTEP EXCHANGE JOURNEY (New Replacement Product Telemetry) ===
+            // Cosmetics Policy: No doorstep inspection, No refund.
+            // Delivery agent delivers fresh replacement unit and collects return item in a single visit.
+            String replAwb = (item != null && item.getReplacementAwbNumber() != null)
+                    ? item.getReplacementAwbNumber()
+                    : "XPB-EXCH-" + Math.abs(safeAwb.hashCode() % 900000 + 100000);
 
-        if ("OUT_FOR_PICKUP".equalsIgnoreCase(courierStatus) || "EXAMINING".equalsIgnoreCase(courierStatus)) {
-            stageIndex = 1;
-            currentStatus = "OUT_FOR_PICKUP";
+            // Milestone 1: Exchange Confirmed & Replacement Booked
             milestones.add(Map.of(
-                    "status", "OUT_FOR_PICKUP",
-                    "title", "Xpressbees Agent Arrived for Return Examine",
-                    "time", LocalDateTime.now().minusMinutes(15).format(dtf),
-                    "location", (order != null && order.getCity() != null) ? order.getCity() : "Your Area",
-                    "description", "Courier partner is examining product seal and packaging at your doorstep."
-            ));
-            nextActionEstimate = "Agent at doorstep • Return examine in progress";
-        } else if ("PICKED_UP".equalsIgnoreCase(courierStatus) || "PICKED_UP_SUCCESS".equalsIgnoreCase(courierStatus)) {
-            stageIndex = 2;
-            currentStatus = "PICKED_UP_SUCCESS";
-            milestones.add(Map.of(
-                    "status", "PICKED_UP_SUCCESS",
-                    "title", "Return Pick Success",
-                    "time", LocalDateTime.now().minusMinutes(5).format(dtf),
-                    "location", "Customer Doorstep",
-                    "description", "Doorstep examination passed. Product collected successfully by courier partner."
-            ));
-            nextActionEstimate = "Item picked up successfully • Refund is being credited";
-        } else if ("PICKED_UP_EXAMINED".equalsIgnoreCase(courierStatus) || "COMPLETED".equalsIgnoreCase(item.getStatus()) || "EXCHANGE_DISPATCHED".equalsIgnoreCase(item.getStatus()) || "REFUNDED".equalsIgnoreCase(item.getRefundStatus())) {
-            stageIndex = 3;
-            currentStatus = "COMPLETED";
-
-            // Milestone 3: Return Pick Success
-            LocalDateTime examTime = (item.getUpdatedAt() != null) ? item.getUpdatedAt() : LocalDateTime.now();
-            milestones.add(Map.of(
-                    "status", "PICKED_UP_SUCCESS",
-                    "title", "Return Pick Success",
-                    "time", examTime.minusMinutes(2).format(dtf),
-                    "location", "Customer Doorstep",
-                    "description", item.getInspectionNotes() != null ? item.getInspectionNotes() : "Seal & batch code verified intact. Item collected successfully."
+                    "status", "REQUESTED",
+                    "title", "Exchange Confirmed & Replacement Booked",
+                    "time", baseTime.format(dtf),
+                    "location", warehouseCity + " Fulfillment Hub",
+                    "description", "Exchange booked for " + itemTitle + ". Fresh replacement unit allocated under AWB #" + replAwb + "."
             ));
 
-            if ("RETURN".equalsIgnoreCase(type)) {
-                // Milestone 4 for RETURN: Refund Issued
+            if ("PICKUP_SCHEDULED".equalsIgnoreCase(courierStatus) || "REQUESTED".equalsIgnoreCase(courierStatus) || "EXCHANGE_BOOKED".equalsIgnoreCase(courierStatus)) {
+                stageIndex = 0;
+                currentStatus = "REQUESTED";
+                nextActionEstimate = "Exchange confirmed • Fresh replacement unit booked for doorstep handover";
+            } else if ("REPLACEMENT_PACKED".equalsIgnoreCase(courierStatus) || "HUB_READY".equalsIgnoreCase(courierStatus) || "IN_TRANSIT".equalsIgnoreCase(courierStatus)) {
+                stageIndex = 1;
+                currentStatus = "REPLACEMENT_PACKED";
+                milestones.add(Map.of(
+                        "status", "REPLACEMENT_PACKED",
+                        "title", "Replacement Packed & In Transit",
+                        "time", baseTime.plusHours(2).format(dtf),
+                        "location", warehouseCity + " Air Sorting Hub",
+                        "description", "Fresh unopened unit of " + itemTitle + " verified and packed. Dispatched via Xpressbees Air Express."
+                ));
+                nextActionEstimate = "Replacement item in transit • Arriving at regional delivery hub";
+            } else if ("OUT_FOR_PICKUP".equalsIgnoreCase(courierStatus) || "OUT_FOR_HANDOVER".equalsIgnoreCase(courierStatus) || "OUT_FOR_DELIVERY".equalsIgnoreCase(courierStatus)) {
+                stageIndex = 2;
+                currentStatus = "OUT_FOR_PICKUP";
+                milestones.add(Map.of(
+                        "status", "REPLACEMENT_PACKED",
+                        "title", "Replacement Packed & In Transit",
+                        "time", baseTime.plusHours(2).format(dtf),
+                        "location", warehouseCity + " Air Sorting Hub",
+                        "description", "Fresh unopened unit of " + itemTitle + " verified and packed. Dispatched via Xpressbees Air Express."
+                ));
+                milestones.add(Map.of(
+                        "status", "OUT_FOR_PICKUP",
+                        "title", "Out for Doorstep Exchange Handover",
+                        "time", LocalDateTime.now().minusMinutes(20).format(dtf),
+                        "location", (order != null && order.getCity() != null) ? order.getCity() : "Your Area",
+                        "description", "Xpressbees delivery partner is out for delivery. Agent will deliver your new " + itemTitle + " and collect the old unit at your doorstep."
+                ));
+                nextActionEstimate = "Delivery partner on the way • Doorstep exchange handover today";
+            } else if ("PICKED_UP_EXAMINED".equalsIgnoreCase(courierStatus) || "COMPLETED".equalsIgnoreCase(item.getStatus()) || "EXCHANGED".equalsIgnoreCase(item.getStatus()) || "EXCHANGE_DISPATCHED".equalsIgnoreCase(item.getStatus())) {
+                stageIndex = 3;
+                currentStatus = "COMPLETED";
+                milestones.add(Map.of(
+                        "status", "REPLACEMENT_PACKED",
+                        "title", "Replacement Packed & In Transit",
+                        "time", baseTime.plusHours(2).format(dtf),
+                        "location", warehouseCity + " Air Sorting Hub",
+                        "description", "Fresh unopened unit of " + itemTitle + " verified and packed. Dispatched via Xpressbees Air Express."
+                ));
+                milestones.add(Map.of(
+                        "status", "OUT_FOR_PICKUP",
+                        "title", "Out for Doorstep Exchange Handover",
+                        "time", LocalDateTime.now().minusMinutes(20).format(dtf),
+                        "location", (order != null && order.getCity() != null) ? order.getCity() : "Your Area",
+                        "description", "Xpressbees delivery partner is out for delivery. Agent will deliver your new " + itemTitle + " and collect the old unit at your doorstep."
+                ));
+                milestones.add(Map.of(
+                        "status", "COMPLETED",
+                        "title", "New Product Delivered & Handover Complete",
+                        "time", (item.getUpdatedAt() != null ? item.getUpdatedAt() : LocalDateTime.now()).format(dtf),
+                        "location", "Customer Doorstep",
+                        "description", "Doorstep exchange completed successfully. Old unit collected and brand new unit of " + itemTitle + " delivered to customer."
+                ));
+                nextActionEstimate = "Exchange complete • New product delivered & old unit collected";
+            } else if ("PICKUP_NDR".equalsIgnoreCase(courierStatus) || (item != null && item.getPickupFailureReason() != null)) {
+                stageIndex = 2;
+                currentStatus = "PICKUP_NDR";
+                int attempt = (item != null && item.getPickupAttempts() != null) ? item.getPickupAttempts() : 1;
+                String reason = (item != null && item.getPickupFailureReason() != null) ? item.getPickupFailureReason() : "CUSTOMER_UNREACHABLE";
+                String title = "Exchange Handover Attempt #" + attempt + " Unsuccessful";
+                String custMsg = "We attempted doorstep exchange handover. Courier will re-attempt delivery tomorrow.";
+
+                if (reason.contains("CUSTOMER_UNREACHABLE") || reason.contains("NOT_PICKING")) {
+                    title = "Exchange Handover Failed: Customer Unreachable (Attempt #" + attempt + ")";
+                    custMsg = "We tried calling you for doorstep exchange handover, but you did not respond. We will re-attempt delivery tomorrow.";
+                } else if (reason.contains("CUSTOMER_POSTPONED") || reason.contains("POSTPONED")) {
+                    title = "Exchange Handover Postponed by Customer (Attempt #" + attempt + ")";
+                    custMsg = "Exchange handover postponed as requested. Courier will re-attempt delivery tomorrow.";
+                } else if (reason.contains("PREMISES_LOCKED")) {
+                    title = "Exchange Handover Failed: Premises Locked (Attempt #" + attempt + ")";
+                    custMsg = "Exchange attempted, but premises were locked. Courier will re-attempt on the next business day.";
+                } else if (reason.contains("ITEM_NOT_READY") || reason.contains("NOT_READY")) {
+                    title = "Exchange Handover Issue: Return Item Not Ready";
+                    custMsg = "Return item was not ready for handover. Courier will re-attempt exchange delivery tomorrow.";
+                }
+
+                milestones.add(Map.of(
+                        "status", "PICKUP_NDR",
+                        "title", title,
+                        "time", LocalDateTime.now().format(dtf),
+                        "location", (order != null && order.getCity() != null) ? order.getCity() : "Your Area",
+                        "description", custMsg
+                ));
+                nextActionEstimate = "Exchange Re-attempt Scheduled • Tomorrow";
+            } else if ("RETURN_CANCELLED".equalsIgnoreCase(courierStatus) || "RETURN_CANCELLED".equalsIgnoreCase(item.getStatus()) || "CANCELLED_BY_CUSTOMER".equalsIgnoreCase(item.getInspectionStatus())) {
+                stageIndex = 3;
+                currentStatus = "RETURN_CANCELLED";
+                milestones.add(Map.of(
+                        "status", "RETURN_CANCELLED",
+                        "title", "Exchange Cancelled by Customer",
+                        "time", (item.getUpdatedAt() != null ? item.getUpdatedAt() : LocalDateTime.now()).format(dtf),
+                        "location", "Customer Profile",
+                        "description", "You chose to cancel the exchange and keep your original product."
+                ));
+                nextActionEstimate = "Exchange cancelled • You kept original product";
+            }
+        } else {
+            // === COSMETICS RETURN & REFUND JOURNEY ===
+            // Milestone 1: Return Initiated
+            milestones.add(Map.of(
+                    "status", "REQUESTED",
+                    "title", "Return Initiated",
+                    "time", baseTime.format(dtf),
+                    "location", (order != null && order.getCity() != null) ? order.getCity() : "Customer Location",
+                    "description", "Reverse AWB #" + safeAwb + " generated. 7-Day Easy Return Guarantee applied."
+            ));
+
+            // Milestone 2: Courier Agent Assigned for Pickup
+            milestones.add(Map.of(
+                    "status", "PICKUP_SCHEDULED",
+                    "title", "Return Examine Scheduled",
+                    "time", baseTime.plusHours(2).format(dtf),
+                    "location", (order != null && order.getCity() != null) ? order.getCity() + " Logistics Hub" : "Regional Hub",
+                    "description", "Doorstep examination assigned to Xpressbees courier agent. Keep container and batch code ready."
+            ));
+
+            if ("PICKUP_SCHEDULED".equalsIgnoreCase(courierStatus) || "REQUESTED".equalsIgnoreCase(courierStatus)) {
+                stageIndex = 0;
+                currentStatus = "REQUESTED";
+                nextActionEstimate = "Return initiated • Pickup scheduled for Tomorrow 10:00 AM - 02:00 PM";
+            } else if ("OUT_FOR_PICKUP".equalsIgnoreCase(courierStatus) || "EXAMINING".equalsIgnoreCase(courierStatus)) {
+                stageIndex = 1;
+                currentStatus = "OUT_FOR_PICKUP";
+                milestones.add(Map.of(
+                        "status", "OUT_FOR_PICKUP",
+                        "title", "Xpressbees Agent Arrived for Return Examine",
+                        "time", LocalDateTime.now().minusMinutes(15).format(dtf),
+                        "location", (order != null && order.getCity() != null) ? order.getCity() : "Your Area",
+                        "description", "Courier partner is examining product seal and packaging at your doorstep."
+                ));
+                nextActionEstimate = "Agent at doorstep • Return examine in progress";
+            } else if ("PICKED_UP".equalsIgnoreCase(courierStatus) || "PICKED_UP_SUCCESS".equalsIgnoreCase(courierStatus)) {
+                stageIndex = 2;
+                currentStatus = "PICKED_UP_SUCCESS";
+                milestones.add(Map.of(
+                        "status", "PICKED_UP_SUCCESS",
+                        "title", "Return Pick Success",
+                        "time", LocalDateTime.now().minusMinutes(5).format(dtf),
+                        "location", "Customer Doorstep",
+                        "description", "Doorstep examination passed. Product collected successfully by courier partner."
+                ));
+                nextActionEstimate = "Item picked up successfully • Refund is being credited";
+            } else if ("PICKED_UP_EXAMINED".equalsIgnoreCase(courierStatus) || "COMPLETED".equalsIgnoreCase(item.getStatus()) || "REFUNDED".equalsIgnoreCase(item.getRefundStatus())) {
+                stageIndex = 3;
+                currentStatus = "COMPLETED";
+
+                LocalDateTime examTime = (item.getUpdatedAt() != null) ? item.getUpdatedAt() : LocalDateTime.now();
+                milestones.add(Map.of(
+                        "status", "PICKED_UP_SUCCESS",
+                        "title", "Return Pick Success",
+                        "time", examTime.minusMinutes(2).format(dtf),
+                        "location", "Customer Doorstep",
+                        "description", item.getInspectionNotes() != null ? item.getInspectionNotes() : "Seal & batch code verified intact. Item collected successfully."
+                ));
+
                 String refId = item.getRefundId() != null ? item.getRefundId() : "rfnd_" + System.currentTimeMillis();
                 boolean isBank = "BANK_TRANSFER".equalsIgnoreCase(item.getRefundMode());
                 String refundLocation = isBank ? (item.getBankName() != null ? item.getBankName() : "Bank Account") : "Razorpay Payment Gateway";
@@ -508,40 +689,59 @@ public class XpressBeesService {
                         "description", refundDescription
                 ));
                 nextActionEstimate = isBank ? "Refund complete • Credited to Bank Account" : "Refund complete • Credited to original payment method";
-            } else {
-                // Milestone 4 for EXCHANGE: Replacement Item Dispatched
-                String repAwb = item.getReplacementAwbNumber() != null ? item.getReplacementAwbNumber() : "XPB-EXCH-" + System.currentTimeMillis() % 100000;
+            } else if ("PICKUP_NDR".equalsIgnoreCase(courierStatus) || (item != null && item.getPickupFailureReason() != null)) {
+                stageIndex = 1;
+                currentStatus = "PICKUP_NDR";
+                int attempt = (item != null && item.getPickupAttempts() != null) ? item.getPickupAttempts() : 1;
+                String reason = (item != null && item.getPickupFailureReason() != null) ? item.getPickupFailureReason() : "CUSTOMER_UNREACHABLE";
+                String title = "Return Pickup Attempt #" + attempt + " Unsuccessful";
+                String custMsg = "We attempted return pickup. Courier will re-attempt pickup tomorrow.";
+
+                if (reason.contains("CUSTOMER_UNREACHABLE") || reason.contains("NOT_PICKING")) {
+                    title = "Return Pickup Failed: Customer Unreachable (Attempt #" + attempt + ")";
+                    custMsg = "We tried calling you for return pickup, but you did not respond. We will re-attempt pickup tomorrow.";
+                } else if (reason.contains("CUSTOMER_POSTPONED") || reason.contains("POSTPONED")) {
+                    title = "Return Pickup Postponed by Customer (Attempt #" + attempt + ")";
+                    custMsg = "Return pickup postponed as requested. Courier will re-attempt pickup tomorrow.";
+                } else if (reason.contains("PREMISES_LOCKED")) {
+                    title = "Return Pickup Failed: Premises Locked (Attempt #" + attempt + ")";
+                    custMsg = "Return pickup attempted, but premises were locked. Courier will re-attempt on the next business day.";
+                } else if (reason.contains("ITEM_NOT_READY") || reason.contains("NOT_READY")) {
+                    title = "Return Pickup Issue: Item Not Ready for Handover";
+                    custMsg = "Item was not packed or ready for pickup. Courier will re-attempt pickup tomorrow.";
+                }
+
                 milestones.add(Map.of(
-                        "status", "EXCHANGE_DISPATCHED",
-                        "title", "Replacement Dispatched: " + (item.getExchangeProductName() != null ? item.getExchangeProductName() : "Replacement Unit"),
-                        "time", examTime.plusMinutes(15).format(dtf),
-                        "location", warehouseCity + " Fulfillment Hub",
-                        "description", "Replacement Order #" + (item.getReplacementOrderNumber() != null ? item.getReplacementOrderNumber() : "ORD-EXCH") + " dispatched with AWB #" + repAwb
+                        "status", "PICKUP_NDR",
+                        "title", title,
+                        "time", LocalDateTime.now().format(dtf),
+                        "location", (order != null && order.getCity() != null) ? order.getCity() : "Your Area",
+                        "description", custMsg
                 ));
-                nextActionEstimate = "Replacement item is in transit • Estimated delivery in 2 business days";
+                nextActionEstimate = "Pickup Re-attempt Scheduled • Tomorrow";
+            } else if ("RETURN_CANCELLED".equalsIgnoreCase(courierStatus) || "RETURN_CANCELLED".equalsIgnoreCase(item.getStatus()) || "CANCELLED_BY_CUSTOMER".equalsIgnoreCase(item.getInspectionStatus())) {
+                stageIndex = 3;
+                currentStatus = "RETURN_CANCELLED";
+                milestones.add(Map.of(
+                        "status", "RETURN_CANCELLED",
+                        "title", "Return Cancelled by Customer",
+                        "time", (item.getUpdatedAt() != null ? item.getUpdatedAt() : LocalDateTime.now()).format(dtf),
+                        "location", "Customer Profile",
+                        "description", "You chose to keep the product. Reverse courier pickup has been cancelled."
+                ));
+                nextActionEstimate = "Return cancelled • You kept the product";
+            } else if ("VERIFIED_FAILED".equalsIgnoreCase(item.getInspectionStatus()) || "REJECTED".equalsIgnoreCase(item.getStatus())) {
+                stageIndex = 3;
+                currentStatus = "REJECTED";
+                milestones.add(Map.of(
+                        "status", "REJECTED",
+                        "title", "Doorstep Verification Failed",
+                        "time", LocalDateTime.now().format(dtf),
+                        "location", "Customer Doorstep",
+                        "description", item.getInspectionNotes() != null ? item.getInspectionNotes() : "Verification criteria not met. Item returned to customer."
+                ));
+                nextActionEstimate = "Return rejected due to inspection failure";
             }
-        } else if ("RETURN_CANCELLED".equalsIgnoreCase(courierStatus) || "RETURN_CANCELLED".equalsIgnoreCase(item.getStatus()) || "CANCELLED_BY_CUSTOMER".equalsIgnoreCase(item.getInspectionStatus())) {
-            stageIndex = 3;
-            currentStatus = "RETURN_CANCELLED";
-            milestones.add(Map.of(
-                    "status", "RETURN_CANCELLED",
-                    "title", (type.equals("EXCHANGE") ? "Exchange" : "Return") + " Cancelled by Customer",
-                    "time", (item.getUpdatedAt() != null ? item.getUpdatedAt() : LocalDateTime.now()).format(dtf),
-                    "location", "Customer Profile",
-                    "description", "You chose to keep the product. Reverse courier pickup has been cancelled."
-            ));
-            nextActionEstimate = "Return cancelled • You kept the product";
-        } else if ("VERIFIED_FAILED".equalsIgnoreCase(item.getInspectionStatus()) || "REJECTED".equalsIgnoreCase(item.getStatus())) {
-            stageIndex = 3;
-            currentStatus = "REJECTED";
-            milestones.add(Map.of(
-                    "status", "REJECTED",
-                    "title", "Doorstep Verification Failed",
-                    "time", LocalDateTime.now().format(dtf),
-                    "location", "Customer Doorstep",
-                    "description", item.getInspectionNotes() != null ? item.getInspectionNotes() : "Verification criteria not met. Item returned to customer."
-            ));
-            nextActionEstimate = "Return rejected due to inspection failure";
         }
 
         Map<String, Object> result = new HashMap<>();
@@ -549,9 +749,12 @@ public class XpressBeesService {
         result.put("orderId", item.getOrderId());
         result.put("orderNumber", item.getOrderNumber());
         result.put("type", type);
-        result.put("awb", safeAwb);
-        result.put("trackingUrl", item.getReverseTrackingUrl() != null ? item.getReverseTrackingUrl() : trackingUrlTemplate.replace("{awb}", safeAwb));
-        result.put("courierName", "Xpressbees Reverse Logistics");
+        String effectiveAwb = ("EXCHANGE".equalsIgnoreCase(type) && item.getReplacementAwbNumber() != null)
+                ? item.getReplacementAwbNumber()
+                : safeAwb;
+        result.put("awb", effectiveAwb);
+        result.put("trackingUrl", item.getReverseTrackingUrl() != null ? item.getReverseTrackingUrl() : trackingUrlTemplate.replace("{awb}", effectiveAwb));
+        result.put("courierName", "EXCHANGE".equalsIgnoreCase(type) ? "Xpressbees Express (Doorstep Swap)" : "Xpressbees Reverse Logistics");
         result.put("currentStatus", currentStatus);
         result.put("stageIndex", stageIndex); // 0..3
         result.put("nextActionEstimate", nextActionEstimate);
@@ -571,6 +774,26 @@ public class XpressBeesService {
         result.put("replacementAwbNumber", item.getReplacementAwbNumber());
         result.put("replacementProductName", item.getExchangeProductName());
         result.put("milestones", milestones);
+
+        if (item != null && ("PICKUP_NDR".equalsIgnoreCase(courierStatus) || item.getPickupFailureReason() != null)) {
+            Map<String, Object> ndrMap = new HashMap<>();
+            ndrMap.put("reasonCode", item.getPickupFailureReason() != null ? item.getPickupFailureReason() : "CUSTOMER_UNREACHABLE");
+            ndrMap.put("attempts", item.getPickupAttempts() != null ? item.getPickupAttempts() : 1);
+            String r = (item.getPickupFailureReason() != null ? item.getPickupFailureReason() : "").toUpperCase();
+            String msg = "We attempted return pickup. Courier will re-attempt pickup tomorrow.";
+            if (r.contains("CUSTOMER_UNREACHABLE") || r.contains("NOT_PICKING")) {
+                msg = "We tried calling you for return pickup, but you did not respond. We will re-attempt pickup tomorrow.";
+            } else if (r.contains("POSTPONED")) {
+                msg = "Return pickup postponed at your request. Courier will re-attempt pickup tomorrow.";
+            } else if (r.contains("PREMISES_LOCKED")) {
+                msg = "Return pickup attempted, but premises were locked. Courier will re-attempt on the next business day.";
+            } else if (r.contains("ITEM_NOT_READY") || r.contains("NOT_READY")) {
+                msg = "Return item was not ready for pickup. Courier will re-attempt pickup tomorrow.";
+            }
+            ndrMap.put("customerMessage", msg);
+            ndrMap.put("needsAddressUpdate", false);
+            result.put("ndrInfo", ndrMap);
+        }
 
         return result;
     }

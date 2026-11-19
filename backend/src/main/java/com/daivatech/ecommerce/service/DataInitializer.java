@@ -24,17 +24,23 @@ public class DataInitializer implements CommandLineRunner {
     private final StockMovementRepository stockMovementRepository;
     private final BatchStockService batchStockService;
     private final com.daivatech.ecommerce.repository.UserAddressRepository addressRepository;
+    private final com.daivatech.ecommerce.repository.SiteSettingRepository siteSettingRepository;
+    private final com.daivatech.ecommerce.repository.CustomerOrderRepository orderRepository;
 
     public DataInitializer(ProductRepository productRepository,
                            UserRepository userRepository,
                            StockMovementRepository stockMovementRepository,
                            BatchStockService batchStockService,
-                           com.daivatech.ecommerce.repository.UserAddressRepository addressRepository) {
+                           com.daivatech.ecommerce.repository.UserAddressRepository addressRepository,
+                           com.daivatech.ecommerce.repository.SiteSettingRepository siteSettingRepository,
+                           com.daivatech.ecommerce.repository.CustomerOrderRepository orderRepository) {
         this.productRepository = productRepository;
         this.userRepository = userRepository;
         this.stockMovementRepository = stockMovementRepository;
         this.batchStockService = batchStockService;
         this.addressRepository = addressRepository;
+        this.siteSettingRepository = siteSettingRepository;
+        this.orderRepository = orderRepository;
     }
 
     @Override
@@ -44,6 +50,83 @@ public class DataInitializer implements CommandLineRunner {
         seedInitialStockMovements();
         batchStockService.ensureInitialBatchesExist();
         seedDefaultAddresses();
+        seedSiteSettings();
+    }
+
+    private void seedSiteSettings() {
+        if (siteSettingRepository.count() == 0) {
+            java.util.Map<String, String> defaults = new java.util.HashMap<>();
+            // Brand & Footer Settings
+            defaults.put("site_name", "AURA LUXE");
+            defaults.put("brand_tagline", "Curated luxury cosmetics, clean clinical skincare, and nourishing botanicals crafted to bring out your skin's natural luminescence.");
+            defaults.put("contact_phone", "+91 98765 43210");
+            defaults.put("contact_email", "support@auraluxe.com");
+            defaults.put("contact_hours", "Mon - Sat, 9:30 AM – 6:30 PM IST");
+            defaults.put("warehouse_address", "124, 4th Cross, Indiranagar, Bengaluru, Karnataka - 560038, India");
+            defaults.put("compliance_note", "Compliant with Consumer Protection (E-Commerce) Rules 2020 and Indian IT Act.");
+            defaults.put("copyright_text", "© 2026 AURA LUXE Cosmetics. All Rights Reserved.");
+            defaults.put("instagram_url", "https://instagram.com/auraluxecosmetics");
+            defaults.put("facebook_url", "https://facebook.com/auraluxecosmetics");
+            defaults.put("youtube_url", "https://youtube.com/@auraluxecosmetics");
+            defaults.put("whatsapp_number", "+91 98765 43210");
+            defaults.put("value_prop_1_title", "100% Organic");
+            defaults.put("value_prop_1_subtitle", "Certified Botanical Actives");
+            defaults.put("value_prop_2_title", "Dermatologist Tested");
+            defaults.put("value_prop_2_subtitle", "Gentle & Safe for All Skin");
+            defaults.put("value_prop_3_title", "Express Delivery");
+            defaults.put("value_prop_3_subtitle", "Fast 2-3 Day Pan-India");
+            defaults.put("value_prop_4_title", "Cruelty Free");
+            defaults.put("value_prop_4_subtitle", "100% PETA Certified");
+
+            // Policy: Refund & Cancellation
+            defaults.put("refund_policy_title", "Refund & Cancellation Policy");
+            defaults.put("refund_policy_last_updated", "November 2026");
+            defaults.put("refund_policy_guarantee_badge", "7-Day Hassle-Free Return Guarantee");
+            defaults.put("refund_policy_guarantee_text", "If your cosmetic product arrives damaged, leaked, or incorrect, you are eligible for an immediate replacement or full refund within 7 days of delivery.");
+            defaults.put("refund_policy_cancellation_terms", "You can cancel your order any time prior to warehouse dispatch by visiting your My Orders tab or emailing support@auraluxe.com. Once dispatched with our courier partner (Xpressbees), shipments cannot be recalled in transit; you may refuse delivery at your doorstep or initiate a return upon receipt.");
+            defaults.put("refund_policy_hygiene_seal", "Due to FDA and cosmetic health & safety regulations, opened cosmetic items, lip tints, and facial creams cannot be returned once their tamper-evident protective seal is broken, unless the formula is defective or damaged during transit.");
+            defaults.put("refund_policy_timeline_prepaid", "Razorpay Prepaid (UPI, Cards, NetBanking): Credited to your bank account within 5–7 business days.");
+            defaults.put("refund_policy_timeline_cod", "Cash on Delivery (COD): Refunded via IMPS / UPI transfer upon receipt of customer banking details within 3–5 business days.");
+
+            // Policy: Shipping & Delivery
+            defaults.put("shipping_policy_title", "Shipping & Delivery Policy");
+            defaults.put("shipping_policy_courier_partner", "Xpressbees Logistics");
+            defaults.put("shipping_policy_hub_location", "Fulfilled from our temperature-controlled central hub in Bengaluru via Xpressbees Air & Surface Express.");
+            defaults.put("shipping_policy_metro_tat", "Metro Cities (Bengaluru, Mumbai, Delhi-NCR, Chennai, Hyderabad, Kolkata): 2–3 business days.");
+            defaults.put("shipping_policy_tier2_tat", "Tier 2 & 3 Cities across India: 3–5 business days.");
+            defaults.put("shipping_policy_same_day_cutoff", "Orders placed before 2:00 PM IST are manifested and dispatched the same day (excluding Sundays & national holidays).");
+            defaults.put("shipping_policy_free_threshold", "999");
+            defaults.put("shipping_policy_standard_fee", "99");
+            defaults.put("shipping_policy_tracking_info", "As soon as your shipment is dispatched, you receive a unique Air Waybill (AWB) number and live tracking link via email and SMS. You can also view step-by-step milestones under your Profile > Order History page.");
+
+            // Policy: Privacy & Data Protection
+            defaults.put("privacy_policy_title", "Privacy & Data Protection Policy");
+            defaults.put("privacy_policy_compliance_act", "Compliant with Section 43A of Information Technology Act 2000");
+            defaults.put("privacy_policy_data_collected", "When you browse, register, or place an order on Aura Luxe, we collect your name, email, phone number, shipping address, and order transaction records strictly for order fulfillment, logistics delivery, and customer service.");
+            defaults.put("privacy_policy_payment_security", "Aura Luxe does not store or process your credit/debit card numbers or UPI PINs. All payment transactions are encrypted via 256-bit SSL and processed directly by Razorpay Software Private Limited, a PCI-DSS Level 1 certified payment gateway regulated by the Reserve Bank of India (RBI).");
+            defaults.put("privacy_policy_non_disclosure", "We never sell, rent, or trade your personal details to third-party marketing brokers. Address and contact details are shared strictly with our contracted courier partner (Xpressbees) solely to facilitate delivery.");
+
+            // Policy: Terms of Service
+            defaults.put("terms_policy_title", "Terms of Service");
+            defaults.put("terms_policy_subtitle", "Binding e-commerce terms of use");
+            defaults.put("terms_policy_patch_test", "While our formulations utilize dermatologically validated botanical extracts, individual skin chemistry varies. We recommend performing a 24-hour patch test on the inner wrist or behind the ear before full facial application.");
+            defaults.put("terms_policy_pricing_currency", "All catalog prices are listed in Indian Rupees (INR) and are inclusive of Goods & Services Tax (GST). Aura Luxe reserves the right to modify prices, bundle discounts, and inventory availability without prior notice.");
+            defaults.put("terms_policy_jurisdiction", "Any dispute arising from transactions on this platform shall be governed by the laws of India and subject to the exclusive jurisdiction of the courts of Bengaluru, Karnataka.");
+
+            // Policy: Grievance Officer
+            defaults.put("grievance_policy_title", "Contact Us & Grievance Redressal");
+            defaults.put("grievance_policy_officer_name", "Priya S. Narang");
+            defaults.put("grievance_policy_officer_designation", "Nodal Officer - Grievance & Compliance");
+            defaults.put("grievance_policy_officer_email", "grievance@auraluxe.com");
+            defaults.put("grievance_policy_officer_phone", "+91 98765 43210");
+            defaults.put("grievance_policy_turnaround_sla", "Acknowledgment within 48 hours; resolution within 30 days");
+            defaults.put("grievance_policy_warehouse_address", "124, 4th Cross, Indiranagar, Bengaluru, Karnataka - 560038, India");
+
+            for (java.util.Map.Entry<String, String> entry : defaults.entrySet()) {
+                siteSettingRepository.save(new com.daivatech.ecommerce.entity.SiteSetting(entry.getKey(), entry.getValue()));
+            }
+            log.info("Seeded initial default Site & Policy settings (total: " + defaults.size() + ")");
+        }
     }
 
     private void seedDefaultAddresses() {
@@ -81,6 +164,37 @@ public class DataInitializer implements CommandLineRunner {
                 log.info("Seeded initial HOME and OFFICE addresses for customer Priya Sharma");
             }
         });
+
+        // Auto-backfill delivery address for any user with placed orders who doesn't have an address yet
+        try {
+            for (com.daivatech.ecommerce.entity.User u : userRepository.findAll()) {
+                if (addressRepository.findByUserId(u.getId()).isEmpty()) {
+                    java.util.List<com.daivatech.ecommerce.entity.CustomerOrder> userOrders = orderRepository.findByUserIdOrderByCreatedAtDesc(u.getId());
+                    if (!userOrders.isEmpty()) {
+                        com.daivatech.ecommerce.entity.CustomerOrder latest = userOrders.get(0);
+                        if (latest.getAddressLine() != null && !latest.getAddressLine().trim().isEmpty()) {
+                            com.daivatech.ecommerce.entity.UserAddress addr = new com.daivatech.ecommerce.entity.UserAddress(
+                                    u.getId(),
+                                    "HOME",
+                                    latest.getCustomerName() != null && !latest.getCustomerName().trim().isEmpty() ? latest.getCustomerName() : u.getFullName(),
+                                    latest.getCustomerPhone() != null && !latest.getCustomerPhone().trim().isEmpty() ? latest.getCustomerPhone() : (u.getPhone() != null ? u.getPhone() : "+91 9900000000"),
+                                    latest.getAddressLine(),
+                                    latest.getCity() != null ? latest.getCity() : "Bengaluru",
+                                    "",
+                                    latest.getCity() != null ? latest.getCity() : "Bengaluru",
+                                    latest.getState() != null ? latest.getState() : "Karnataka",
+                                    latest.getPincode() != null ? latest.getPincode() : "560001",
+                                    true
+                            );
+                            addressRepository.save(addr);
+                            log.info("Auto-backfilled delivery address from past order for customer {}", u.getEmail());
+                        }
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Address backfill error: {}", ex.getMessage());
+        }
     }
 
     private void seedUsers() {

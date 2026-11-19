@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, ShoppingBag, User as UserIcon, Shield, Menu, X, Sparkles, Heart } from 'lucide-react';
+import { Search, ShoppingBag, User as UserIcon, Shield, Menu, X, Sparkles, Heart, LogOut } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useAuth } from '../context/AuthContext';
@@ -190,12 +190,63 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, current
               <div className="relative group">
                 <button
                   onClick={() => onNavigate('profile')}
-                  className="flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2 rounded-full hover:bg-[#f1ece5] dark:hover:bg-[#201813] text-neutral-700 dark:text-neutral-200 transition"
+                  className="flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2 rounded-full hover:bg-[#f1ece5] dark:hover:bg-[#201813] text-neutral-700 dark:text-neutral-200 transition cursor-pointer"
                   title="My Account"
                 >
                   <UserIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                   <span className="text-xs font-medium hidden md:inline">{user.fullName.split(' ')[0]}</span>
                 </button>
+
+                {/* Dropdown Menu on Desktop Hover */}
+                <div className="hidden md:group-hover:block absolute right-0 top-full pt-1.5 z-50 animate-in fade-in duration-150">
+                  <div className="w-52 bg-white dark:bg-[#1A1410] rounded-2xl shadow-xl border border-neutral-200 dark:border-[#2C211A] p-2 space-y-1 text-xs">
+                    <div className="px-3 py-1.5 border-b border-neutral-100 dark:border-[#2C211A]">
+                      <p className="font-bold text-neutral-900 dark:text-[#EDE4DA] truncate">{user.fullName}</p>
+                      <p className="text-[10px] text-neutral-500 truncate">{user.email}</p>
+                    </div>
+                    <button
+                      onClick={() => onNavigate('profile')}
+                      className="w-full text-left px-3 py-2 rounded-xl text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-[#251D18] flex items-center gap-2 transition cursor-pointer"
+                    >
+                      <UserIcon className="w-3.5 h-3.5" />
+                      <span>My Profile & Orders</span>
+                    </button>
+                    <button
+                      onClick={() => onNavigate('wishlist')}
+                      className="w-full text-left px-3 py-2 rounded-xl text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-[#251D18] flex items-center justify-between transition cursor-pointer"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Heart className="w-3.5 h-3.5 text-rose-500" />
+                        <span>Wishlist</span>
+                      </span>
+                      {totalWishlistCount > 0 && (
+                        <span className="px-1.5 py-0.2 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 font-bold text-[10px]">
+                          {totalWishlistCount}
+                        </span>
+                      )}
+                    </button>
+                    {isAdmin && (
+                      <button
+                        onClick={() => onNavigate('admin')}
+                        className="w-full text-left px-3 py-2 rounded-xl text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 font-medium transition cursor-pointer"
+                      >
+                        Admin Portal
+                      </button>
+                    )}
+                    <div className="border-t border-neutral-100 dark:border-[#2C211A] pt-1">
+                      <button
+                        onClick={() => {
+                          logout();
+                          onNavigate('home');
+                        }}
+                        className="w-full text-left px-3 py-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 flex items-center gap-2 font-semibold transition cursor-pointer"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>Sign Out</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             ) : (
               <button
@@ -334,7 +385,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, current
                 <button onClick={() => { setIsMobileMenuOpen(false); onNavigate('profile'); }} className="font-medium text-neutral-800 dark:text-neutral-200">
                   My Profile ({user.fullName})
                 </button>
-                <button onClick={() => { logout(); setIsMobileMenuOpen(false); }} className="text-rose-600 dark:text-rose-400">
+                <button
+                  onClick={() => {
+                    logout();
+                    setIsMobileMenuOpen(false);
+                    onNavigate('home');
+                  }}
+                  className="text-rose-600 dark:text-rose-400 font-semibold cursor-pointer"
+                >
                   Logout
                 </button>
               </>

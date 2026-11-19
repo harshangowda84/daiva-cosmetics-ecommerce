@@ -34,6 +34,7 @@ public class OrderService {
     private final RazorpayService razorpayService;
     private final XpressBeesService xpressBeesService;
     private final com.daivatech.ecommerce.repository.OrderReturnExchangeRepository returnExchangeRepository;
+    private final com.daivatech.ecommerce.repository.UserAddressRepository userAddressRepository;
 
     public OrderService(CustomerOrderRepository orderRepository,
                         ProductRepository productRepository,
@@ -43,7 +44,8 @@ public class OrderService {
                         BatchStockService batchStockService,
                         RazorpayService razorpayService,
                         XpressBeesService xpressBeesService,
-                        com.daivatech.ecommerce.repository.OrderReturnExchangeRepository returnExchangeRepository) {
+                        com.daivatech.ecommerce.repository.OrderReturnExchangeRepository returnExchangeRepository,
+                        com.daivatech.ecommerce.repository.UserAddressRepository userAddressRepository) {
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.zohoInventoryService = zohoInventoryService;
@@ -53,6 +55,7 @@ public class OrderService {
         this.razorpayService = razorpayService;
         this.xpressBeesService = xpressBeesService;
         this.returnExchangeRepository = returnExchangeRepository;
+        this.userAddressRepository = userAddressRepository;
     }
 
     @Transactional
@@ -140,6 +143,32 @@ public class OrderService {
 
         // Save order in DB first
         CustomerOrder savedOrder = orderRepository.save(order);
+
+        // Auto-save delivery address to customer profile if user is logged in
+        if (savedOrder.getUserId() != null && savedOrder.getAddressLine() != null && !savedOrder.getAddressLine().trim().isEmpty()) {
+            try {
+                List<com.daivatech.ecommerce.entity.UserAddress> existingAddrs = userAddressRepository.findByUserId(savedOrder.getUserId());
+                boolean alreadySaved = existingAddrs.stream().anyMatch(a ->
+                    a.getAddressLine1() != null && a.getAddressLine1().trim().equalsIgnoreCase(savedOrder.getAddressLine().trim())
+                );
+                if (!alreadySaved) {
+                    com.daivatech.ecommerce.entity.UserAddress newAddr = new com.daivatech.ecommerce.entity.UserAddress();
+                    newAddr.setUserId(savedOrder.getUserId());
+                    newAddr.setRecipientName(savedOrder.getCustomerName() != null && !savedOrder.getCustomerName().trim().isEmpty() ? savedOrder.getCustomerName() : "Home");
+                    newAddr.setPhone(savedOrder.getCustomerPhone());
+                    newAddr.setAddressLine1(savedOrder.getAddressLine());
+                    newAddr.setCity(savedOrder.getCity());
+                    newAddr.setState(savedOrder.getState());
+                    newAddr.setPincode(savedOrder.getPincode());
+                    newAddr.setAddressType("HOME");
+                    newAddr.setIsDefault(existingAddrs.isEmpty());
+                    userAddressRepository.save(newAddr);
+                    log.info("Auto-saved order delivery address to user address book for userId: {}", savedOrder.getUserId());
+                }
+            } catch (Exception ex) {
+                log.warn("Could not auto-save order address to user profile: {}", ex.getMessage());
+            }
+        }
 
         // Async/Sync attempt with Zoho
         try {
@@ -275,6 +304,7 @@ public class OrderService {
 
         order.setOrderStatus("DELIVERED");
         order.setCourierStatus("DELIVERED");
+        order.setDeliveryFailureReason(null);
         order.setDeliveredAt(LocalDateTime.now());
         // For COD orders, delivery also means payment collected / paid
         if ("COD".equalsIgnoreCase(order.getPaymentMethod()) || "PENDING".equalsIgnoreCase(order.getPaymentStatus())) {
@@ -369,13 +399,30 @@ public class OrderService {
 
     /**
      * Requirement 5: Doorstep Delivery Failure / NDR Emulation
-     * (e.g. Customer not picking call, customer ordered mistakenly, customer refused delivery)
+     * - Retryable reasons (Not picking call, postponed, premises locked, address incomplete): Keeps order active, records NDR_PENDING, schedules re-attempt.
+     * - Terminal refusal (Customer refused / doesn't want): Cancels order, initiates RTO, releases refund.
      */
     @Transactional
     public CustomerOrder failDeliveryAtDoorstep(Long orderId, String reasonCode, String notes) {
         CustomerOrder order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found with ID: " + orderId));
 
+        boolean isTerminalRefusal = "CUSTOMER_REFUSED".equalsIgnoreCase(reasonCode)
+                || "MISTAKEN_ORDER".equalsIgnoreCase(reasonCode)
+                || (reasonCode != null && reasonCode.toUpperCase().contains("REFUSED"));
+
+        if (!isTerminalRefusal) {
+            // RETRYABLE NDR:
+            // Do NOT cancel the order. Order remains in-transit, courier marks NDR_PENDING for re-attempt.
+            order.setOrderStatus("IN_TRANSIT");
+            order.setCourierStatus("NDR_PENDING");
+            order.setDeliveryFailureReason(reasonCode + (notes != null && !notes.isBlank() ? " - " + notes : ""));
+            log.info("NDR recorded for order {}: {}. Scheduled for delivery re-attempt.", order.getOrderNumber(), reasonCode);
+            return orderRepository.save(order);
+        }
+
+        // TERMINAL REFUSAL / CUSTOMER DOES NOT WANT PRODUCT:
+        // Cancel delivery, initiate RTO back to warehouse, issue instant refund if prepaid
         order.setOrderStatus("CANCELLED");
         order.setCourierStatus("RTO_INITIATED");
         order.setDeliveryFailureReason(reasonCode + (notes != null && !notes.isBlank() ? " - " + notes : ""));
@@ -420,6 +467,53 @@ public class OrderService {
     }
 
     /**
+     * Requirement: Retry / Re-attempt Delivery from XpressBees Simulator
+     */
+    @Transactional
+    public CustomerOrder retryDelivery(Long orderId) {
+        CustomerOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found with ID: " + orderId));
+
+        if ("CANCELLED".equalsIgnoreCase(order.getOrderStatus()) || "DELIVERED".equalsIgnoreCase(order.getOrderStatus())) {
+            throw new IllegalStateException("Cannot retry delivery for order with status: " + order.getOrderStatus());
+        }
+
+        int nextAttempt = (order.getDeliveryAttempts() != null ? order.getDeliveryAttempts() : 1) + 1;
+        order.setDeliveryAttempts(nextAttempt);
+        order.setCourierStatus("OUT_FOR_DELIVERY");
+        order.setOrderStatus("IN_TRANSIT");
+        order.setDeliveryFailureReason(null);
+
+        log.info("XpressBees delivery re-attempt #{} initiated for order {}", nextAttempt, order.getOrderNumber());
+        return orderRepository.save(order);
+    }
+
+    /**
+     * Requirement: Customer Updates Incomplete / Incorrect Delivery Address
+     */
+    @Transactional
+    public CustomerOrder updateDeliveryAddress(Long orderId, String addressLine, String city, String state, String pincode) {
+        CustomerOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order not found with ID: " + orderId));
+
+        if ("CANCELLED".equalsIgnoreCase(order.getOrderStatus()) || "DELIVERED".equalsIgnoreCase(order.getOrderStatus())) {
+            throw new IllegalStateException("Cannot update address for order with status: " + order.getOrderStatus());
+        }
+
+        if (addressLine != null && !addressLine.isBlank()) order.setAddressLine(addressLine.trim());
+        if (city != null && !city.isBlank()) order.setCity(city.trim());
+        if (state != null && !state.isBlank()) order.setState(state.trim());
+        if (pincode != null && !pincode.isBlank()) order.setPincode(pincode.trim());
+
+        // When customer fixes address, mark note ready for re-attempt
+        order.setDeliveryFailureReason("ADDRESS_UPDATED_READY_FOR_REATTEMPT");
+
+        log.info("Customer updated delivery address for order {}: {}, {}, {} - {}",
+                order.getOrderNumber(), order.getAddressLine(), order.getCity(), order.getState(), order.getPincode());
+        return orderRepository.save(order);
+    }
+
+    /**
      * Requirement 6 & 7: Customer Product Return or Exchange Request
      */
     @Transactional
@@ -458,9 +552,23 @@ public class OrderService {
         if (originalProductId != null) {
             productRepository.findById(originalProductId).ifPresent(p -> req.setOriginalProductName(p.getName()));
         }
-        req.setExchangeProductId(exchangeProductId);
-        if (exchangeProductId != null) {
-            productRepository.findById(exchangeProductId).ifPresent(p -> req.setExchangeProductName(p.getName()));
+
+        if ("EXCHANGE".equalsIgnoreCase(type)) {
+            // Cosmetics Policy: Exchange is strictly for the exact same product (fresh unopened replacement unit)
+            if (exchangeProductId == null || exchangeProductId == 0) {
+                exchangeProductId = originalProductId;
+            }
+            req.setExchangeProductId(exchangeProductId);
+            if (exchangeProductId != null) {
+                productRepository.findById(exchangeProductId).ifPresent(p -> req.setExchangeProductName(p.getName()));
+            }
+            String replAwb = "XPB-EXCH-" + Math.abs((order.getOrderNumber() + "-REP").hashCode() % 900000 + 100000);
+            req.setReplacementAwbNumber(replAwb);
+            req.setReplacementOrderNumber(order.getOrderNumber() + "-EXCH");
+            req.setReplacementTrackingUrl("https://www.xpressbees.com/track?awb=" + replAwb);
+            req.setReplacementCourierStatus("EXCHANGE_BOOKED");
+        } else {
+            req.setExchangeProductId(null);
         }
 
         // Refund method configuration:
@@ -622,6 +730,58 @@ public class OrderService {
             orderRepository.save(order);
         });
 
+        return returnExchangeRepository.save(item);
+    }
+
+    /**
+     * Requirement: Doorstep Return Pickup NDR / Delivery Partner Reschedule
+     */
+    @Transactional
+    public com.daivatech.ecommerce.entity.OrderReturnExchange failReturnPickup(Long returnExchangeId, String reason, String notes) {
+        com.daivatech.ecommerce.entity.OrderReturnExchange item = returnExchangeRepository.findById(returnExchangeId)
+                .orElseThrow(() -> new IllegalArgumentException("Return/Exchange request not found: " + returnExchangeId));
+
+        if ("COMPLETED".equalsIgnoreCase(item.getStatus()) || "REFUNDED".equalsIgnoreCase(item.getRefundStatus())) {
+            throw new IllegalStateException("Cannot fail pickup on completed return.");
+        }
+
+        String safeReason = (reason != null && !reason.isBlank()) ? reason.toUpperCase().trim() : "CUSTOMER_UNREACHABLE";
+
+        if ("CUSTOMER_CANCELLED_RETURN".equalsIgnoreCase(safeReason) || "CUSTOMER_WANTS_TO_KEEP".equalsIgnoreCase(safeReason)) {
+            // Customer decides to cancel return & keep product
+            return cancelReturnOrExchange(returnExchangeId);
+        }
+
+        int nextAttempts = (item.getPickupAttempts() != null ? item.getPickupAttempts() : 1) + 1;
+        item.setPickupAttempts(nextAttempts);
+        item.setPickupFailureReason(safeReason);
+        item.setCourierStatus("PICKUP_NDR");
+        item.setStatus("PICKUP_SCHEDULED"); // Still active return, rescheduled for next attempt
+        if (notes != null && !notes.isBlank()) {
+            item.setInspectionNotes(notes);
+        }
+        item.setUpdatedAt(LocalDateTime.now());
+        log.info("Return pickup NDR recorded for return ID {} (attempt {}): {}", returnExchangeId, nextAttempts, safeReason);
+        return returnExchangeRepository.save(item);
+    }
+
+    /**
+     * Requirement: Reschedule / Retry Return Pickup
+     */
+    @Transactional
+    public com.daivatech.ecommerce.entity.OrderReturnExchange retryReturnPickup(Long returnExchangeId) {
+        com.daivatech.ecommerce.entity.OrderReturnExchange item = returnExchangeRepository.findById(returnExchangeId)
+                .orElseThrow(() -> new IllegalArgumentException("Return/Exchange request not found: " + returnExchangeId));
+
+        if ("COMPLETED".equalsIgnoreCase(item.getStatus()) || "RETURN_CANCELLED".equalsIgnoreCase(item.getStatus())) {
+            throw new IllegalStateException("Cannot retry pickup on inactive/completed return.");
+        }
+
+        item.setCourierStatus("OUT_FOR_PICKUP");
+        item.setStatus("OUT_FOR_PICKUP");
+        item.setPickupFailureReason(null);
+        item.setUpdatedAt(LocalDateTime.now());
+        log.info("Return pickup re-attempt dispatched for return ID {}", returnExchangeId);
         return returnExchangeRepository.save(item);
     }
 

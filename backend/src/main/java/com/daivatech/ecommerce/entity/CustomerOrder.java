@@ -63,8 +63,9 @@ public class CustomerOrder {
     private String awbNumber;
     private String shippingLabelUrl;
     private String trackingUrl;
-    private String courierStatus = "PENDING"; // "PENDING", "MANIFESTED", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "UNDELIVERED_ATTEMPT", "RTO_INITIATED", "RTO_IN_TRANSIT", "RTO_DELIVERED"
-    private String deliveryFailureReason; // e.g. "CUSTOMER_UNREACHABLE", "DOOR_STEP_REJECTED", "WRONG_ADDRESS", "ORDER_CANCELLED_IN_TRANSIT"
+    private String courierStatus = "PENDING"; // "PENDING", "MANIFESTED", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "UNDELIVERED_ATTEMPT", "RTO_INITIATED", "RTO_IN_TRANSIT", "RTO_DELIVERED", "NDR_PENDING"
+    private String deliveryFailureReason; // e.g. "CUSTOMER_UNREACHABLE", "DOOR_STEP_REJECTED", "WRONG_ADDRESS", "ORDER_CANCELLED_IN_TRANSIT", "PREMISES_LOCKED", "ADDRESS_INCOMPLETE"
+    private Integer deliveryAttempts = 1;
     private LocalDateTime deliveredAt;
     private LocalDateTime dispatchedAt;
 
@@ -171,6 +172,9 @@ public class CustomerOrder {
 
     public String getDeliveryFailureReason() { return deliveryFailureReason; }
     public void setDeliveryFailureReason(String deliveryFailureReason) { this.deliveryFailureReason = deliveryFailureReason; }
+
+    public Integer getDeliveryAttempts() { return deliveryAttempts != null ? deliveryAttempts : 1; }
+    public void setDeliveryAttempts(Integer deliveryAttempts) { this.deliveryAttempts = deliveryAttempts; }
 
     public LocalDateTime getDeliveredAt() { return deliveredAt; }
     public void setDeliveredAt(LocalDateTime deliveredAt) { this.deliveredAt = deliveredAt; }

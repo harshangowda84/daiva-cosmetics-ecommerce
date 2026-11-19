@@ -80,7 +80,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     state: user?.state || '',
     pincode: user?.pincode || '',
     paymentMethod: 'RAZORPAY', // Default to Razorpay
-    saveToProfile: false,
+    saveToProfile: true,
   });
 
   const [loading, setLoading] = useState(false);
@@ -280,8 +280,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
       })),
     };
 
-    // Auto-save new address to profile if checked
-    if (formData.saveToProfile && user?.id && selectedAddressId === 'new') {
+    // Auto-save new address to profile if checked or if user has no saved addresses
+    if (user?.id && (formData.saveToProfile || savedAddresses.length === 0) && selectedAddressId === 'new') {
       try {
         await api.createUserAddress(user.id, {
           addressType: 'HOME',

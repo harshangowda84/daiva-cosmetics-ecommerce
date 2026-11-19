@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RotateCcw, RefreshCw, X, AlertCircle, CheckCircle2, ShieldCheck, Camera, ArrowRight, Building, CreditCard } from 'lucide-react';
+import { RotateCcw, RefreshCw, X, AlertCircle, CheckCircle2, ShieldCheck, Camera, ArrowRight, Building, CreditCard, Truck } from 'lucide-react';
 import { CustomerOrder, OrderItem, Product } from '../types';
 import { api } from '../services/api';
 import { getFullImageUrl, handleImageError } from '../utils/image';
@@ -51,10 +51,11 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
   ];
 
   const exchangeReasons = [
-    { value: 'WRONG_SHADE', label: 'Wrong shade or undertone chosen (Foundation / Lipstick / Blush)' },
-    { value: 'WRONG_SIZE', label: 'Wrong volume/size ordered (e.g. 30ml vs 50ml)' },
-    { value: 'CONTAINER_DAMAGED', label: 'Received damaged outer container - need fresh replacement' },
-    { value: 'FORMULA_PREFERENCE', label: 'Prefer another skin formula in this range' },
+    { value: 'DAMAGED_LEAKING', label: 'Damaged or leaking bottle/container - need fresh replacement' },
+    { value: 'DEFECTIVE_PUMP', label: 'Defective dropper, pump, or dispenser - need fresh replacement' },
+    { value: 'SEAL_BROKEN', label: 'Product seal broken on arrival - need fresh replacement' },
+    { value: 'QUALITY_DISCREPANCY', label: 'Texture, fragrance, or formula discrepancy - need fresh replacement' },
+    { value: 'WRONG_ITEM_DELIVERED', label: 'Wrong product delivered by mistake - need original ordered item' },
   ];
 
   const selectedOrderItem = order.items?.find((i) => i.productId === selectedItemId) || order.items?.[0];
@@ -63,10 +64,7 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
     e.preventDefault();
     setError('');
 
-    if (mode === 'EXCHANGE' && !exchangeProductId) {
-      setError('Please select the replacement product you would like in exchange.');
-      return;
-    }
+    const targetExchangeProductId = mode === 'EXCHANGE' ? (selectedOrderItem?.productId || selectedItemId) : undefined;
 
     if (mode === 'RETURN' && isCodOrder) {
       if (!accountHolderName.trim()) {
@@ -100,7 +98,7 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
         detailedReason,
         proofImageUrl,
         originalProductId: selectedOrderItem?.productId,
-        exchangeProductId: mode === 'EXCHANGE' ? exchangeProductId : undefined,
+        exchangeProductId: targetExchangeProductId,
         bankAccountNumber: (mode === 'RETURN' && isCodOrder) ? accountNumber.trim() : undefined,
         bankIfscCode: (mode === 'RETURN' && isCodOrder) ? ifscCode.trim().toUpperCase() : undefined,
         bankAccountHolderName: (mode === 'RETURN' && isCodOrder) ? accountHolderName.trim() : undefined,
@@ -149,31 +147,50 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
                 {successData.type === 'RETURN' ? 'Return Pickup Scheduled!' : 'Exchange Request Confirmed!'}
               </h4>
               <p className="text-xs text-neutral-600 dark:text-neutral-400 max-w-sm mx-auto">
-                XpressBees courier pickup has been automatically booked. Reverse AWB: <strong className="font-mono text-neutral-900 dark:text-white">{successData.reverseAwbNumber}</strong>.
+                {successData.type === 'RETURN' ? (
+                  <>XpressBees courier pickup has been automatically booked. Reverse AWB: <strong className="font-mono text-neutral-900 dark:text-white">{successData.reverseAwbNumber}</strong>.</>
+                ) : (
+                  <>Fresh replacement unit booked! Courier will deliver your new item and collect the return item at your doorstep. Replacement AWB: <strong className="font-mono text-neutral-900 dark:text-white">{successData.replacementAwbNumber || successData.reverseAwbNumber}</strong>.</>
+                )}
               </p>
             </div>
 
             <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-[#221914] text-xs text-left space-y-2 border border-neutral-200 dark:border-[#2C211A]">
               <div className="flex justify-between">
-                <span className="text-neutral-500">Item:</span>
+                <span className="text-neutral-500">{successData.type === 'EXCHANGE' ? 'Item to Exchange:' : 'Item:'}</span>
                 <span className="font-semibold text-neutral-800 dark:text-neutral-200">{successData.originalProductName || 'Cosmetic Item'}</span>
               </div>
+              {successData.type === 'EXCHANGE' && (
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">Replacement Item:</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">Fresh unit of {successData.originalProductName}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-neutral-500">Reason:</span>
                 <span className="font-semibold text-neutral-800 dark:text-neutral-200">{successData.reasonCategory}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-neutral-500">Pickup Courier:</span>
-                <span className="font-semibold text-amber-600">XpressBees Reverse Logistics</span>
+                <span className="text-neutral-500">{successData.type === 'EXCHANGE' ? 'Logistics Partner:' : 'Pickup Courier:'}</span>
+                <span className="font-semibold text-amber-600">{successData.type === 'EXCHANGE' ? 'XpressBees Express (Doorstep Swap)' : 'XpressBees Reverse Logistics'}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-neutral-500">Refund Settlement:</span>
-                <span className="font-semibold text-emerald-600">
-                  {isCodOrder
-                    ? `Bank Transfer (${bankName} - A/C ending in ${accountNumber.slice(-4)})`
-                    : 'Instant Refund to original payment method (UPI / Card)'}
-                </span>
-              </div>
+              {successData.type === 'RETURN' ? (
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">Refund Settlement:</span>
+                  <span className="font-semibold text-emerald-600">
+                    {isCodOrder
+                      ? `Bank Transfer (${bankName} - A/C ending in ${accountNumber.slice(-4)})`
+                      : 'Instant Refund to original payment method (UPI / Card)'}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex justify-between">
+                  <span className="text-neutral-500">Handover Policy:</span>
+                  <span className="font-semibold text-emerald-600">
+                    Handover New Unit & Collect Old Unit (No refund required)
+                  </span>
+                </div>
+              )}
             </div>
 
             <button
@@ -199,13 +216,13 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => { setMode('EXCHANGE'); setReasonCategory('WRONG_SHADE'); }}
+                onClick={() => { setMode('EXCHANGE'); setReasonCategory('DAMAGED_LEAKING'); }}
                 className={`flex-1 py-2 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   mode === 'EXCHANGE' ? 'bg-[#1E1611] dark:bg-rose-900 text-white shadow-xs' : 'text-neutral-600 dark:text-neutral-400 hover:text-neutral-900'
                 }`}
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                <span>Exchange Item / Shade</span>
+                <span>Exchange</span>
               </button>
             </div>
 
@@ -253,6 +270,21 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
               </div>
             </div>
 
+            {/* Same Product Exchange Notice for Cosmetics */}
+            {mode === 'EXCHANGE' && (
+              <div className="p-3 bg-rose-50/60 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 rounded-2xl flex items-start gap-3">
+                <RefreshCw className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <p className="font-bold text-rose-900 dark:text-rose-200">
+                    Same Product Exchange Policy (Cosmetics)
+                  </p>
+                  <p className="text-[11px] text-rose-800/90 dark:text-rose-300/90 mt-0.5 leading-relaxed">
+                    For cosmetics hygiene and safety, an exchange is provided for a fresh, unopened unit of the exact same product: <strong>{selectedOrderItem?.productName}</strong>. The delivery partner will deliver the new unit and collect the return unit at your doorstep.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Category of Reason */}
             <div>
               <label className="font-semibold text-neutral-800 dark:text-neutral-200 block mb-1">
@@ -269,28 +301,7 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
               </select>
             </div>
 
-            {/* If Exchange: Select Replacement Product */}
-            {mode === 'EXCHANGE' && (
-              <div>
-                <label className="font-semibold text-neutral-800 dark:text-neutral-200 block mb-1">
-                  Select Replacement Product / Shade:
-                </label>
-                <select
-                  value={exchangeProductId}
-                  onChange={(e) => setExchangeProductId(Number(e.target.value))}
-                  className="w-full p-2.5 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-[#1A1410] text-neutral-900 dark:text-[#EDE4DA] text-xs font-medium focus:ring-1 focus:ring-rose-500"
-                >
-                  <option value={0}>-- Choose Replacement Product --</option>
-                  {availableProducts.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.subCategory}) - ₹{p.price}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* REFUND DESTINATION LOGIC (COD vs Prepaid) */}
+            {/* REFUND DESTINATION LOGIC (COD vs Prepaid) - ONLY FOR RETURN, NOT FOR EXCHANGE */}
             {mode === 'RETURN' && (
               isCodOrder ? (
                 /* Bank Account Details Form for Cash on Delivery Orders */
@@ -422,16 +433,28 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
               />
             </div>
 
-            {/* Amazon / Flipkart Style Trust Note */}
-            <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl space-y-1 text-[11px] text-amber-800 dark:text-amber-300">
-              <div className="flex items-center gap-1.5 font-bold">
-                <ShieldCheck className="w-4 h-4 text-amber-600" />
-                <span>Doorstep Inspection & Guaranteed Refund</span>
+            {/* Context-aware Trust Note */}
+            {mode === 'RETURN' ? (
+              <div className="p-3 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl space-y-1 text-[11px] text-amber-800 dark:text-amber-300">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <ShieldCheck className="w-4 h-4 text-amber-600" />
+                  <span>Doorstep Inspection & Guaranteed Refund</span>
+                </div>
+                <p className="leading-relaxed">
+                  XpressBees courier will verify the cosmetic container and batch seal at your doorstep. Upon pickup confirmation, your refund of <strong>₹{order.totalAmount.toLocaleString()}</strong> will be processed {isCodOrder ? 'to your submitted bank account' : 'instantly to your original payment mode'}.
+                </p>
               </div>
-              <p className="leading-relaxed">
-                XpressBees courier will verify the cosmetic container and batch seal at your doorstep. Upon pickup confirmation, your refund of <strong>₹{order.totalAmount.toLocaleString()}</strong> will be processed {isCodOrder ? 'to your submitted bank account' : 'instantly to your original payment mode'}.
-              </p>
-            </div>
+            ) : (
+              <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-xl space-y-1 text-[11px] text-emerald-800 dark:text-emerald-300">
+                <div className="flex items-center gap-1.5 font-bold">
+                  <Truck className="w-4 h-4 text-emerald-600" />
+                  <span>Doorstep Exchange Handover</span>
+                </div>
+                <p className="leading-relaxed">
+                  XpressBees delivery partner will bring your fresh replacement unit of <strong>{selectedOrderItem?.productName}</strong>. They will hand over the new product and collect the return unit in a single visit at your doorstep. No refund needed as a fresh replacement unit is provided.
+                </p>
+              </div>
+            )}
 
             <div className="pt-2 flex justify-end gap-2">
               <button
@@ -446,7 +469,7 @@ export const ReturnExchangeModal: React.FC<ReturnExchangeModalProps> = ({
                 disabled={loading}
                 className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50 cursor-pointer"
               >
-                {loading ? 'Scheduling...' : mode === 'RETURN' ? 'Confirm Return & Schedule Pickup' : 'Confirm Exchange'}
+                {loading ? 'Processing...' : mode === 'RETURN' ? 'Confirm Return & Schedule Pickup' : 'Confirm Doorstep Exchange'}
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>

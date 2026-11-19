@@ -95,6 +95,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    try {
+      localStorage.removeItem('daiva_user');
+      localStorage.removeItem('daiva_cart');
+      localStorage.removeItem('daiva_wishlist');
+      localStorage.removeItem('daiva_browsing_history');
+      localStorage.removeItem('daiva_cart_guest');
+      localStorage.removeItem('daiva_wishlist_guest');
+      localStorage.removeItem('daiva_browsing_history_guest');
+    } catch {}
+
+    // Dispatch global auth logout event for instantaneous in-memory state reset
+    try {
+      window.dispatchEvent(new Event('daiva_auth_logout'));
+    } catch {}
+
     setUser(null);
   };
 

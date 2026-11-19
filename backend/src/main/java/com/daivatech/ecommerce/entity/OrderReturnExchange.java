@@ -53,6 +53,8 @@ public class OrderReturnExchange {
     private String courierStatus = "PENDING"; // "PENDING", "PICKUP_SCHEDULED", "PICKED_UP", "RTO_IN_TRANSIT", "RETURN_DELIVERED"
     private String inspectionStatus = "PENDING"; // "PENDING", "VERIFIED_PASSED", "VERIFIED_FAILED"
     private String inspectionNotes;
+    private Integer pickupAttempts = 1;
+    private String pickupFailureReason;
 
     // Refund details (if Return)
     private BigDecimal refundAmount = BigDecimal.ZERO;
@@ -170,6 +172,12 @@ public class OrderReturnExchange {
 
     public String getBankName() { return bankName; }
     public void setBankName(String bankName) { this.bankName = bankName; }
+
+    public Integer getPickupAttempts() { return pickupAttempts != null ? pickupAttempts : 1; }
+    public void setPickupAttempts(Integer pickupAttempts) { this.pickupAttempts = pickupAttempts; }
+
+    public String getPickupFailureReason() { return pickupFailureReason; }
+    public void setPickupFailureReason(String pickupFailureReason) { this.pickupFailureReason = pickupFailureReason; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

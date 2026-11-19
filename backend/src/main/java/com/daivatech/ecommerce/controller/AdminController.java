@@ -551,6 +551,19 @@ public class AdminController {
     }
 
     /**
+     * Requirement: Re-attempt delivery from XpressBees Simulator
+     */
+    @PostMapping("/orders/{id}/retry-delivery")
+    public ResponseEntity<?> retryDelivery(@PathVariable Long id) {
+        try {
+            CustomerOrder retried = orderService.retryDelivery(id);
+            return ResponseEntity.ok(retried);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
      * Requirement 6 & 7: Verify reverse pickup examination and issue refund/exchange dispatch
      */
     @PostMapping("/returns/{returnId}/verify-pickup")
@@ -581,6 +594,34 @@ public class AdminController {
                 item.setStatus(newStatus);
             }
             return ResponseEntity.ok(orderService.saveReturnExchange(item));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Requirement: Doorstep Return Pickup NDR / Delivery Partner Reschedule
+     */
+    @PostMapping("/returns/{returnId}/fail-pickup")
+    public ResponseEntity<?> failReturnPickup(@PathVariable Long returnId, @RequestBody Map<String, String> payload) {
+        try {
+            String reason = payload.getOrDefault("reasonCode", "CUSTOMER_UNREACHABLE");
+            String notes = payload.get("notes");
+            com.daivatech.ecommerce.entity.OrderReturnExchange failed = orderService.failReturnPickup(returnId, reason, notes);
+            return ResponseEntity.ok(failed);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Requirement: Reschedule / Retry Return Pickup
+     */
+    @PostMapping("/returns/{returnId}/retry-pickup")
+    public ResponseEntity<?> retryReturnPickup(@PathVariable Long returnId) {
+        try {
+            com.daivatech.ecommerce.entity.OrderReturnExchange retried = orderService.retryReturnPickup(returnId);
+            return ResponseEntity.ok(retried);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

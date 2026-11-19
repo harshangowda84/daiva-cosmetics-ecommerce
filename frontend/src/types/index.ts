@@ -110,6 +110,7 @@ export interface CustomerOrder {
   trackingUrl?: string;
   courierStatus?: string;
   deliveryFailureReason?: string;
+  deliveryAttempts?: number;
   deliveredAt?: string;
   dispatchedAt?: string;
   zohoCustomerId?: string;
@@ -145,6 +146,8 @@ export interface OrderReturnExchange {
   courierStatus?: string;
   inspectionStatus?: string;
   inspectionNotes?: string;
+  pickupAttempts?: number;
+  pickupFailureReason?: string;
   refundAmount?: number;
   refundId?: string;
   refundStatus?: string;
@@ -183,6 +186,7 @@ export interface ReturnExchangeTrackingInfo {
   replacementOrderNumber?: string;
   replacementAwbNumber?: string;
   replacementProductName?: string;
+  ndrInfo?: NdrInfo;
   milestones: Array<{
     status: string;
     title: string;
@@ -285,6 +289,13 @@ export interface ShipmentMilestone {
   location: string;
 }
 
+export interface NdrInfo {
+  reasonCode: string;
+  attempts: number;
+  customerMessage: string;
+  needsAddressUpdate: boolean;
+}
+
 export interface ShipmentTracking {
   awb: string;
   courierName?: string;
@@ -294,6 +305,11 @@ export interface ShipmentTracking {
   trackingUrl?: string;
   message?: string;
   returnExchangeTracking?: ReturnExchangeTrackingInfo;
+  ndrInfo?: NdrInfo;
+  orderStatus?: string;
+  courierStatus?: string;
+  paymentStatus?: string;
+  deliveredAt?: string;
 }
 
 export interface ProductReview {
