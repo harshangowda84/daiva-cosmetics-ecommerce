@@ -405,7 +405,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
     setLoginError('');
     try {
       setLoginLoading(true);
-      const res = await login(adminEmail, adminPassword);
+      const res = await login(adminEmail.trim(), adminPassword.trim());
       if (res.role !== 'ADMIN') {
         logout();
         setLoginError('Access denied: Your account does not have Store Administrator privileges.');

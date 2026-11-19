@@ -157,12 +157,17 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login', onNav
     setLoading(true);
 
     try {
+      let loggedUser: any;
       if (isLogin) {
-        await login(email.trim(), password);
+        loggedUser = await login(email.trim(), password.trim());
       } else {
-        await register(fullName.trim(), email.trim(), password, phone.trim());
+        loggedUser = await register(fullName.trim(), email.trim(), password.trim(), phone.trim());
       }
-      onNavigate('home');
+      if (loggedUser?.role === 'ADMIN') {
+        onNavigate('admin');
+      } else {
+        onNavigate('home');
+      }
     } catch (err: any) {
       setError(err.message || 'Authentication failed');
     } finally {

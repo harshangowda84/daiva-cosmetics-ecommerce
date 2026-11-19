@@ -47,14 +47,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return null;
   });
 
-  // Dedicated Tab-scoped session storage for Storefront Customer
+  // Dedicated Tab-scoped session storage for Storefront Customer / Active User
   const [user, setUser] = useState<User | null>(() => {
     try {
       // Purge any old persistent localStorage credentials to eliminate cross-session contamination
       localStorage.removeItem('daiva_user');
 
       const saved = sessionStorage.getItem('aura_customer_session');
-      return saved ? JSON.parse(saved) : null;
+      if (saved) return JSON.parse(saved);
+
+      const savedAdmin = sessionStorage.getItem('aura_admin_session');
+      if (savedAdmin) {
+        const parsed = JSON.parse(savedAdmin);
+        if (parsed.role === 'ADMIN') return parsed;
+      }
+      return null;
     } catch {
       return null;
     }
@@ -129,12 +136,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch {}
 
+    setUser(combined);
+    sessionStorage.setItem('aura_customer_session', JSON.stringify(combined));
+
     if (combined.role === 'ADMIN') {
       setAdminUser(combined);
       sessionStorage.setItem('aura_admin_session', JSON.stringify(combined));
-    } else {
-      setUser(combined);
-      sessionStorage.setItem('aura_customer_session', JSON.stringify(combined));
     }
     return combined;
   };
