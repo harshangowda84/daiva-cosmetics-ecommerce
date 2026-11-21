@@ -9,7 +9,6 @@ import {
   Award,
   Sparkles,
   Share2,
-  MessageSquare,
   Package,
   Zap,
   Star,
@@ -434,34 +433,7 @@ export const AdminStorefrontControls: React.FC<AdminStorefrontControlsProps> = (
               </button>
             </div>
 
-            {/* 2. WhatsApp Direct Inquiry Button */}
-            <div className={`${cardClass} flex items-center justify-between gap-4`}>
-              <div className="space-y-1">
-                <h4 className="font-bold text-xs sm:text-sm text-neutral-900 dark:text-[#EDE4DA] flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-emerald-500" />
-                  <span>WhatsApp Concierge Direct Inquiry Button</span>
-                </h4>
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                  Allows customers to immediately chat with Aura Luxe beauty advisors on WhatsApp about the product.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleToggle('pdp_show_whatsapp_share', settings.pdp_show_whatsapp_share)}
-                className={`p-1.5 rounded-full transition shrink-0 ${
-                  settings.pdp_show_whatsapp_share !== 'false' ? 'text-emerald-500' : 'text-neutral-400'
-                }`}
-                title="Toggle WhatsApp Button"
-              >
-                {settings.pdp_show_whatsapp_share !== 'false' ? (
-                  <ToggleRight className="w-9 h-9" />
-                ) : (
-                  <ToggleLeft className="w-9 h-9" />
-                )}
-              </button>
-            </div>
-
-            {/* 3. Direct Share Link Modal Button */}
+            {/* Direct Share Link Modal Button */}
             <div className={`${cardClass} flex items-center justify-between gap-4`}>
               <div className="space-y-1">
                 <h4 className="font-bold text-xs sm:text-sm text-neutral-900 dark:text-[#EDE4DA] flex items-center gap-2">

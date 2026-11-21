@@ -18,7 +18,6 @@ import {
   Loader2,
   Heart,
   Share2,
-  MessageCircle,
   Award,
   CheckCircle2
 } from 'lucide-react';
@@ -234,13 +233,6 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
       selectedVariant?.price
     );
     onNavigate('checkout');
-  };
-
-  const handleWhatsAppInquiry = () => {
-    const phone = (settings.whatsapp_number || '919876543210').replace(/[^0-9]/g, '');
-    const variantTxt = selectedVariant ? ` (${selectedVariant.size} - ₹${selectedVariant.price})` : '';
-    const msg = encodeURIComponent(`Hello Aura Luxe! I would like to inquire about "${product.name}"${variantTxt}. SKU: ${selectedVariant?.sku || product.sku}. Is this ready for express dispatch?`);
-    window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
   };
 
   const isWishlisted = product ? isInWishlist(product.id) : false;
@@ -519,18 +511,6 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
                 </button>
               )}
             </div>
-
-            {/* WhatsApp Direct Inquiry Button */}
-            {settings.pdp_show_whatsapp_share !== 'false' && (
-              <button
-                type="button"
-                onClick={handleWhatsAppInquiry}
-                className="w-full py-2.5 px-4 rounded-xl border border-emerald-600/30 bg-emerald-50/70 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center justify-center gap-2 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition cursor-pointer"
-              >
-                <MessageCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <span>Inquire via WhatsApp Concierge</span>
-              </button>
-            )}
           </div>
 
           {/* Delivery & Assurance */}
