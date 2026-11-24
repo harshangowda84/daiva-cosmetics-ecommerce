@@ -29,6 +29,7 @@ public class DataInitializer implements CommandLineRunner {
     private final com.daivatech.ecommerce.repository.UserBrowsingHistoryRepository browsingHistoryRepository;
     private final com.daivatech.ecommerce.repository.WishlistItemRepository wishlistItemRepository;
     private final com.daivatech.ecommerce.repository.CartItemRepository cartItemRepository;
+    private final com.daivatech.ecommerce.repository.ProductBatchRepository batchRepository;
 
     public DataInitializer(ProductRepository productRepository,
                            UserRepository userRepository,
@@ -39,7 +40,8 @@ public class DataInitializer implements CommandLineRunner {
                            com.daivatech.ecommerce.repository.CustomerOrderRepository orderRepository,
                            com.daivatech.ecommerce.repository.UserBrowsingHistoryRepository browsingHistoryRepository,
                            com.daivatech.ecommerce.repository.WishlistItemRepository wishlistItemRepository,
-                           com.daivatech.ecommerce.repository.CartItemRepository cartItemRepository) {
+                           com.daivatech.ecommerce.repository.CartItemRepository cartItemRepository,
+                           com.daivatech.ecommerce.repository.ProductBatchRepository batchRepository) {
         this.productRepository = productRepository;
         this.userRepository = userRepository;
         this.stockMovementRepository = stockMovementRepository;
@@ -50,6 +52,7 @@ public class DataInitializer implements CommandLineRunner {
         this.browsingHistoryRepository = browsingHistoryRepository;
         this.wishlistItemRepository = wishlistItemRepository;
         this.cartItemRepository = cartItemRepository;
+        this.batchRepository = batchRepository;
     }
 
     @Override
@@ -259,16 +262,11 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     public void seedCosmetics() {
-        if (productRepository.count() >= 120) {
-            updateExistingProductVariantsAndVolumes();
-            updateExistingProductZohoIds();
-            return;
-        }
-
-        log.info("Seeding 120 authentic Myntra beauty and cosmetics products (20 per category)...");
+        log.info("Seeding 120 authentic, 100% distinct Myntra beauty and cosmetics products (20 unique per category)...");
         browsingHistoryRepository.deleteAll();
         wishlistItemRepository.deleteAll();
         cartItemRepository.deleteAll();
+        batchRepository.deleteAll();
         productRepository.deleteAll();
 
         try (var is = getClass().getResourceAsStream("/catalog/cosmetics_120.json")) {

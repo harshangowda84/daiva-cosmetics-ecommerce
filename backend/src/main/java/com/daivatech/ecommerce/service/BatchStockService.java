@@ -261,6 +261,9 @@ public class BatchStockService {
                 int stock = p.getStockQuantity() != null ? p.getStockQuantity() : 20;
                 String cleanSku = (p.getSku() != null && !p.getSku().isBlank()) ? p.getSku() : "PRD" + p.getId();
                 String batchNum = "LOT-" + cleanSku.toUpperCase() + "-INIT";
+                if (batchRepository.findByBatchNumber(batchNum).isPresent()) {
+                    batchNum = batchNum + "-" + p.getId();
+                }
 
                 ProductBatch b = new ProductBatch(
                         batchNum,
