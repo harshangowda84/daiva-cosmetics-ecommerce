@@ -40,6 +40,12 @@ export const PLPPage: React.FC<PLPPageProps> = ({ initialSubCategory = 'All', on
   const [maxPrice, setMaxPrice] = useState<number | undefined>(undefined);
   const [sortBy, setSortBy] = useState<string>('newest');
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const [isDesktopFiltersOpen, setIsDesktopFiltersOpen] = useState(true);
+
+  const activeFilterCount =
+    (selectedSubCategory !== 'All' ? 1 : 0) +
+    (selectedSkinType !== 'All Skin Types' ? 1 : 0) +
+    (minPrice !== undefined || maxPrice !== undefined ? 1 : 0);
 
   useEffect(() => {
     if (initialSubCategory) {
@@ -103,102 +109,125 @@ export const PLPPage: React.FC<PLPPageProps> = ({ initialSubCategory = 'All', on
       </div>
 
       {/* Main Grid with Sidebar Filter */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Desktop Filter Sidebar */}
-        <aside className="hidden lg:block space-y-6">
-          <div className="bg-white dark:bg-[#1A1410] rounded-2xl p-6 border border-[#ede7df] dark:border-[#2C211A] shadow-sm space-y-6 transition-colors">
-            <div className="flex justify-between items-center pb-4 border-b border-neutral-100 dark:border-[#2C211A]">
-              <div className="flex items-center gap-2 text-sm font-bold text-neutral-900 dark:text-[#EDE4DA]">
-                <Filter className="w-4 h-4 text-rose-700 dark:text-rose-400" />
-                <span>Filters</span>
+      <div className={`grid grid-cols-1 ${isDesktopFiltersOpen ? 'lg:grid-cols-4' : 'lg:grid-cols-1'} gap-8 items-start transition-all duration-300`}>
+        {/* Desktop Filter Sidebar (Sticky) */}
+        {isDesktopFiltersOpen && (
+          <aside
+            role="complementary"
+            aria-label="Product filters"
+            className="hidden lg:block space-y-6 lg:sticky lg:top-24 lg:self-start lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto pr-1 z-10"
+          >
+            <div className="bg-white dark:bg-[#1A1410] rounded-2xl p-6 border border-[#ede7df] dark:border-[#2C211A] shadow-sm space-y-6 transition-colors">
+              <div className="flex justify-between items-center pb-4 border-b border-neutral-100 dark:border-[#2C211A]">
+                <div className="flex items-center gap-2 text-sm font-bold text-neutral-900 dark:text-[#EDE4DA]">
+                  <Filter className="w-4 h-4 text-rose-700 dark:text-rose-400" />
+                  <span>Filters</span>
+                </div>
+                <button
+                  onClick={handleResetFilters}
+                  className="text-xs text-rose-700 dark:text-rose-400 hover:text-rose-800 font-medium flex items-center gap-1"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Reset</span>
+                </button>
               </div>
-              <button
-                onClick={handleResetFilters}
-                className="text-xs text-rose-700 dark:text-rose-400 hover:text-rose-800 font-medium flex items-center gap-1"
-              >
-                <RefreshCw className="w-3 h-3" />
-                <span>Reset</span>
-              </button>
-            </div>
 
-            {/* Subcategories */}
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-3">
-                Cosmetics Subcategory
-              </h4>
-              <div className="space-y-1.5">
-                {subCategories.map((sub) => (
-                  <button
-                    key={sub}
-                    onClick={() => {
-                      setSelectedSubCategory(sub);
-                      onNavigate('plp', sub);
-                    }}
-                    className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition ${
-                      selectedSubCategory === sub
-                        ? 'bg-[#1E1611] dark:bg-rose-950 text-white dark:border dark:border-rose-800/40'
-                        : 'text-neutral-600 dark:text-neutral-400 hover:bg-[#FAF9F6] dark:hover:bg-[#251D18] dark:hover:text-white'
-                    }`}
-                  >
-                    {sub}
-                  </button>
-                ))}
+              {/* Subcategories */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-3">
+                  Cosmetics Subcategory
+                </h4>
+                <div className="space-y-1.5">
+                  {subCategories.map((sub) => (
+                    <button
+                      key={sub}
+                      onClick={() => {
+                        setSelectedSubCategory(sub);
+                        onNavigate('plp', sub);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition ${
+                        selectedSubCategory === sub
+                          ? 'bg-[#1E1611] dark:bg-rose-950 text-white dark:border dark:border-rose-800/40'
+                          : 'text-neutral-600 dark:text-neutral-400 hover:bg-[#FAF9F6] dark:hover:bg-[#251D18] dark:hover:text-white'
+                      }`}
+                    >
+                      {sub}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {/* Skin Type */}
-            <div className="pt-4 border-t border-neutral-100 dark:border-[#2C211A]">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-3">
-                Skin Type
-              </h4>
-              <div className="space-y-1.5">
-                {skinTypes.map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => setSelectedSkinType(type)}
-                    className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition ${
-                      selectedSkinType === type
-                        ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60'
-                        : 'text-neutral-600 dark:text-neutral-400 hover:bg-[#FAF9F6] dark:hover:bg-[#251D18] dark:hover:text-white'
-                    }`}
-                  >
-                    {type}
-                  </button>
-                ))}
+              {/* Skin Type */}
+              <div className="pt-4 border-t border-neutral-100 dark:border-[#2C211A]">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-3">
+                  Skin Type
+                </h4>
+                <div className="space-y-1.5">
+                  {skinTypes.map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => setSelectedSkinType(type)}
+                      className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition ${
+                        selectedSkinType === type
+                          ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60'
+                          : 'text-neutral-600 dark:text-neutral-400 hover:bg-[#FAF9F6] dark:hover:bg-[#251D18] dark:hover:text-white'
+                      }`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            {/* Price Filter */}
-            <div className="pt-4 border-t border-neutral-100 dark:border-[#2C211A]">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-3">
-                Price (₹)
-              </h4>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="number"
-                  placeholder="Min"
-                  value={minPrice !== undefined ? minPrice : ''}
-                  onChange={(e) => setMinPrice(e.target.value ? Number(e.target.value) : undefined)}
-                  className="w-full text-xs p-2 rounded-lg border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#251D18] text-neutral-800 dark:text-[#EDE4DA] focus:outline-none focus:ring-1 focus:ring-rose-500"
-                />
-                <input
-                  type="number"
-                  placeholder="Max"
-                  value={maxPrice !== undefined ? maxPrice : ''}
-                  onChange={(e) => setMaxPrice(e.target.value ? Number(e.target.value) : undefined)}
-                  className="w-full text-xs p-2 rounded-lg border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#251D18] text-neutral-800 dark:text-[#EDE4DA] focus:outline-none focus:ring-1 focus:ring-rose-500"
-                />
+              {/* Price Filter */}
+              <div className="pt-4 border-t border-neutral-100 dark:border-[#2C211A]">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300 mb-3">
+                  Price (₹)
+                </h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    placeholder="Min"
+                    value={minPrice !== undefined ? minPrice : ''}
+                    onChange={(e) => setMinPrice(e.target.value ? Number(e.target.value) : undefined)}
+                    className="w-full text-xs p-2 rounded-lg border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#251D18] text-neutral-800 dark:text-[#EDE4DA] focus:outline-none focus:ring-1 focus:ring-rose-500"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Max"
+                    value={maxPrice !== undefined ? maxPrice : ''}
+                    onChange={(e) => setMaxPrice(e.target.value ? Number(e.target.value) : undefined)}
+                    className="w-full text-xs p-2 rounded-lg border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#251D18] text-neutral-800 dark:text-[#EDE4DA] focus:outline-none focus:ring-1 focus:ring-rose-500"
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        </aside>
+          </aside>
+        )}
 
         {/* Product Grid Area */}
-        <div className="lg:col-span-3 space-y-6">
+        <div className={`${isDesktopFiltersOpen ? 'lg:col-span-3' : 'lg:col-span-1'} space-y-6 transition-all duration-300`}>
           {/* Top Sort & Count Bar */}
           <div className="bg-white dark:bg-[#1A1410] rounded-2xl p-4 border border-[#ede7df] dark:border-[#2C211A] flex flex-wrap justify-between items-center gap-4 transition-colors">
-            <div className="text-xs text-neutral-600 dark:text-neutral-400">
-              Showing <span className="font-bold text-neutral-900 dark:text-[#EDE4DA]">{products.length}</span> cosmetic items
+            <div className="flex items-center gap-4">
+              {/* Desktop Filter Toggle Button */}
+              <button
+                onClick={() => setIsDesktopFiltersOpen((prev) => !prev)}
+                className="hidden lg:flex items-center gap-2 px-3.5 py-2 rounded-xl border border-neutral-200 dark:border-[#382B21] text-xs font-semibold text-neutral-800 dark:text-[#EDE4DA] bg-[#FAF9F6] dark:bg-[#251D18] hover:border-neutral-400 dark:hover:border-neutral-500 transition-all shadow-2xs"
+                title={isDesktopFiltersOpen ? "Hide filters for wider product view" : "Show sidebar filters"}
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 text-rose-700 dark:text-rose-400" />
+                <span>{isDesktopFiltersOpen ? 'Hide Filters' : 'Show Filters'}</span>
+                {activeFilterCount > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center ml-0.5">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+
+              <div className="text-xs text-neutral-600 dark:text-neutral-400">
+                Showing <span className="font-bold text-neutral-900 dark:text-[#EDE4DA]">{products.length}</span> cosmetic items
+              </div>
             </div>
 
             <div className="flex items-center gap-3">
@@ -209,6 +238,11 @@ export const PLPPage: React.FC<PLPPageProps> = ({ initialSubCategory = 'All', on
               >
                 <SlidersHorizontal className="w-3.5 h-3.5" />
                 <span>Filters</span>
+                {activeFilterCount > 0 && (
+                  <span className="w-4 h-4 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center">
+                    {activeFilterCount}
+                  </span>
+                )}
               </button>
 
               {/* Sort Dropdown */}
@@ -230,7 +264,7 @@ export const PLPPage: React.FC<PLPPageProps> = ({ initialSubCategory = 'All', on
 
           {/* Grid */}
           {loading ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5 items-stretch">
+            <div className={`grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 ${isDesktopFiltersOpen ? 'xl:grid-cols-4' : 'xl:grid-cols-5'} gap-3 sm:gap-4 lg:gap-5 items-stretch`}>
               {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                 <div key={n} className="bg-white dark:bg-[#1A1410] rounded-2xl h-64 animate-pulse border border-neutral-100 dark:border-[#2C211A]" />
               ))}
@@ -247,7 +281,7 @@ export const PLPPage: React.FC<PLPPageProps> = ({ initialSubCategory = 'All', on
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-5 items-stretch">
+            <div className={`grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 ${isDesktopFiltersOpen ? 'xl:grid-cols-4' : 'xl:grid-cols-5'} gap-3 sm:gap-4 lg:gap-5 items-stretch`}>
               {products.map((product) => (
                 <ProductCard key={product.id} product={product} onNavigate={onNavigate} />
               ))}
