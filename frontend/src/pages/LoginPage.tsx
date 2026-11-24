@@ -179,17 +179,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login', onNav
     setLoading(true);
 
     try {
-      let loggedUser: any;
       if (isLogin) {
-        loggedUser = await login(email.trim(), password.trim());
+        await login(email.trim(), password.trim());
       } else {
-        loggedUser = await register(fullName.trim(), email.trim(), password.trim(), phone.trim());
+        await register(fullName.trim(), email.trim(), password.trim(), phone.trim());
       }
-      if (loggedUser?.role === 'ADMIN') {
-        onNavigate('admin');
-      } else {
-        onNavigate('home');
-      }
+      onNavigate('home');
     } catch (err: any) {
       setError(err.message || 'Authentication failed');
     } finally {
@@ -291,11 +286,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login', onNav
               appleSub,
               identityToken: idToken,
             });
-            if (logged?.role === 'ADMIN') {
-              onNavigate('admin');
-            } else {
-              onNavigate('home');
-            }
+            onNavigate('home');
             return;
           }
         }
@@ -327,16 +318,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login', onNav
     setAppleLoading(true);
     setShowAppleModal(false);
     try {
-      const logged = await loginWithApple({
+      await loginWithApple({
         email: demoEmail,
         fullName: demoName,
         appleSub: `apple_id_${Date.now()}`,
       });
-      if (logged?.role === 'ADMIN') {
-        onNavigate('admin');
-      } else {
-        onNavigate('home');
-      }
+      onNavigate('home');
     } catch (err: any) {
       setError(err.message || 'Apple authentication failed');
     } finally {
