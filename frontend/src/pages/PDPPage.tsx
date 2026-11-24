@@ -139,8 +139,8 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
         setLoading(false);
       }
     };
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     fetchProduct();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [slug]);
 
   // Parse volume / quantity variants (e.g. 10ml, 50ml, 100ml)
@@ -156,10 +156,11 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
     return [];
   }, [product]);
 
-  // Synchronize initial selectedVariant
+  // Synchronize initial selectedVariant (defaults to standard size, index 1)
   useEffect(() => {
     if (parsedVariants.length > 0) {
-      const match = parsedVariants.find((v) => v.stock > 0) || parsedVariants[0];
+      const standardVariant = parsedVariants.length >= 2 && parsedVariants[1].stock > 0 ? parsedVariants[1] : null;
+      const match = standardVariant || parsedVariants.find((v) => v.stock > 0) || parsedVariants[0];
       setSelectedVariant(match);
     } else {
       setSelectedVariant(null);

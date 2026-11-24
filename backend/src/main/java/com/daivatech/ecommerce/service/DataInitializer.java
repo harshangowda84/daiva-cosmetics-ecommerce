@@ -260,6 +260,7 @@ public class DataInitializer implements CommandLineRunner {
 
     public void seedCosmetics() {
         if (productRepository.count() >= 120) {
+            updateExistingProductVariantsAndVolumes();
             updateExistingProductZohoIds();
             return;
         }
@@ -345,6 +346,43 @@ public class DataInitializer implements CommandLineRunner {
         p.setIsActive(true);
         p.setVariantsJson(variantsJson);
         return p;
+    }
+
+    private void updateExistingProductVariantsAndVolumes() {
+        try (var is = getClass().getResourceAsStream("/catalog/cosmetics_120.json")) {
+            if (is != null) {
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                java.util.List<java.util.Map<String, Object>> list = mapper.readValue(is, new com.fasterxml.jackson.core.type.TypeReference<>() {});
+                java.util.Map<String, java.util.Map<String, Object>> slugMap = new java.util.HashMap<>();
+                for (var m : list) {
+                    slugMap.put((String) m.get("slug"), m);
+                }
+
+                List<Product> products = productRepository.findAll();
+                boolean changed = false;
+                for (Product p : products) {
+                    var m = slugMap.get(p.getSlug());
+                    if (m != null) {
+                        String newVariants = (String) m.get("variantsJson");
+                        String newVolume = (String) m.get("volume");
+                        if (newVariants != null && !newVariants.equals(p.getVariantsJson())) {
+                            p.setVariantsJson(newVariants);
+                            changed = true;
+                        }
+                        if (newVolume != null && !newVolume.equals(p.getVolume())) {
+                            p.setVolume(newVolume);
+                            changed = true;
+                        }
+                    }
+                }
+                if (changed) {
+                    productRepository.saveAll(products);
+                    log.info("Successfully updated product variants and quantities (3 realistic sizes per product) across catalog!");
+                }
+            }
+        } catch (Exception ex) {
+            log.error("Failed to update product variants from JSON: {}", ex.getMessage());
+        }
     }
 
     private void updateExistingProductZohoIds() {

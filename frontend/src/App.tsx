@@ -92,14 +92,19 @@ export const App: React.FC = () => {
         window.location.hash = newHash;
       }
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   };
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [currentPage, pageParam]);
 
   useEffect(() => {
     const syncFromLocation = () => {
       const route = parseRouteFromUrl();
       setCurrentPage(route.page);
       setPageParam(route.param);
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     };
 
     // Run immediately on mount
