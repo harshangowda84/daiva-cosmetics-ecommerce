@@ -12,7 +12,7 @@ import {
   MockPaymentSimulationResponse,
   UserBrowsingHistoryItem,
 } from '../types';
-import { getFullImageUrl } from '../utils/image';
+import { getFullImageUrl, parseGalleryImages } from '../utils/image';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -21,11 +21,11 @@ export const normalizeProduct = (product: Product): Product => {
   const imageUrl = getFullImageUrl(product.imageUrl);
   let galleryImages = product.galleryImages;
   if (galleryImages) {
-    galleryImages = galleryImages
-      .split(',')
+    const list = parseGalleryImages(galleryImages, imageUrl);
+    galleryImages = list
       .map((img) => getFullImageUrl(img.trim()))
       .filter(Boolean)
-      .join(',');
+      .join('\n');
   } else if (imageUrl) {
     galleryImages = imageUrl;
   }
