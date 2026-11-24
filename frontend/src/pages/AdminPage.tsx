@@ -46,7 +46,10 @@ import {
   FileText,
   SlidersHorizontal,
   Layers,
-  Sparkles as SparklesIcon
+  Sparkles as SparklesIcon,
+  ChevronLeft,
+  ChevronRight,
+  ArrowUpDown
 } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api } from '../services/api';
@@ -159,6 +162,100 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const [stockEdits, setStockEdits] = useState<{ [id: number]: number }>({});
   const [savingStockId, setSavingStockId] = useState<number | null>(null);
   const [singleSyncingId, setSingleSyncingId] = useState<number | null>(null);
+
+  // Product Catalog Search & Filter states (Tab 1)
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+  const [productSubCategoryFilter, setProductSubCategoryFilter] = useState('ALL');
+  const [productStockFilter, setProductStockFilter] = useState<'ALL' | 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK'>('ALL');
+  const [productZohoFilter, setProductZohoFilter] = useState<'ALL' | 'SYNCED' | 'UNSYNCED'>('ALL');
+  const [productSortBy, setProductSortBy] = useState<'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'stock_asc' | 'stock_desc' | 'sku_asc'>('name_asc');
+  const [productPage, setProductPage] = useState(1);
+  const [productItemsPerPage, setProductItemsPerPage] = useState<number>(20);
+
+  // Unique subcategories derived from catalog
+  const catalogSubCategories = React.useMemo(() => {
+    const set = new Set<string>();
+    products.forEach((p) => {
+      if (p.subCategory) set.add(p.subCategory);
+    });
+    return Array.from(set).sort();
+  }, [products]);
+
+  // Filtered and Sorted products
+  const filteredProducts = React.useMemo(() => {
+    return products
+      .filter((p) => {
+        // 1. Search Query (name, brand, sku, zohoItemId, subCategory)
+        if (productSearchQuery.trim()) {
+          const q = productSearchQuery.toLowerCase().trim();
+          const matchName = p.name?.toLowerCase().includes(q);
+          const matchBrand = p.brand?.toLowerCase().includes(q);
+          const matchSku = p.sku?.toLowerCase().includes(q);
+          const matchZoho = p.zohoItemId?.toLowerCase().includes(q);
+          const matchSub = p.subCategory?.toLowerCase().includes(q);
+          if (!matchName && !matchBrand && !matchSku && !matchZoho && !matchSub) {
+            return false;
+          }
+        }
+
+        // 2. Subcategory Filter
+        if (productSubCategoryFilter !== 'ALL' && p.subCategory !== productSubCategoryFilter) {
+          return false;
+        }
+
+        // 3. Stock Status Filter
+        const stock = stockEdits[p.id] !== undefined ? stockEdits[p.id] : (p.stockQuantity ?? 0);
+        if (productStockFilter === 'IN_STOCK' && stock <= 5) return false;
+        if (productStockFilter === 'LOW_STOCK' && (stock <= 0 || stock > 5)) return false;
+        if (productStockFilter === 'OUT_OF_STOCK' && stock > 0) return false;
+
+        // 4. Zoho Sync Filter
+        if (productZohoFilter === 'SYNCED' && (!p.zohoItemId || p.zohoItemId.trim() === '')) return false;
+        if (productZohoFilter === 'UNSYNCED' && p.zohoItemId && p.zohoItemId.trim() !== '') return false;
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (productSortBy === 'name_asc') return (a.name || '').localeCompare(b.name || '');
+        if (productSortBy === 'name_desc') return (b.name || '').localeCompare(a.name || '');
+        if (productSortBy === 'price_asc') return (a.price || 0) - (b.price || 0);
+        if (productSortBy === 'price_desc') return (b.price || 0) - (a.price || 0);
+        const stockA = stockEdits[a.id] !== undefined ? stockEdits[a.id] : (a.stockQuantity ?? 0);
+        const stockB = stockEdits[b.id] !== undefined ? stockEdits[b.id] : (b.stockQuantity ?? 0);
+        if (productSortBy === 'stock_asc') return stockA - stockB;
+        if (productSortBy === 'stock_desc') return stockB - stockA;
+        if (productSortBy === 'sku_asc') return (a.sku || '').localeCompare(b.sku || '');
+        return 0;
+      });
+  }, [products, productSearchQuery, productSubCategoryFilter, productStockFilter, productZohoFilter, productSortBy, stockEdits]);
+
+  // Active filter count
+  const activeProductFilterCount =
+    (productSearchQuery.trim() ? 1 : 0) +
+    (productSubCategoryFilter !== 'ALL' ? 1 : 0) +
+    (productStockFilter !== 'ALL' ? 1 : 0) +
+    (productZohoFilter !== 'ALL' ? 1 : 0);
+
+  const handleResetProductFilters = () => {
+    setProductSearchQuery('');
+    setProductSubCategoryFilter('ALL');
+    setProductStockFilter('ALL');
+    setProductZohoFilter('ALL');
+    setProductSortBy('name_asc');
+    setProductPage(1);
+  };
+
+  // Reset page to 1 when filters change
+  useEffect(() => {
+    setProductPage(1);
+  }, [productSearchQuery, productSubCategoryFilter, productStockFilter, productZohoFilter, productSortBy, productItemsPerPage]);
+
+  const totalProductPages = productItemsPerPage === -1 ? 1 : Math.ceil(filteredProducts.length / productItemsPerPage) || 1;
+  const paginatedProducts = React.useMemo(() => {
+    if (productItemsPerPage === -1) return filteredProducts;
+    const start = (productPage - 1) * productItemsPerPage;
+    return filteredProducts.slice(start, start + productItemsPerPage);
+  }, [filteredProducts, productPage, productItemsPerPage]);
 
   // Add Product Modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -1302,6 +1399,133 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
               </div>
             </div>
 
+            {/* SEARCH & FILTERS CONTROLS */}
+            <div className="p-4 border-b border-neutral-100 dark:border-[#2C211A] bg-white dark:bg-[#1A1410] space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                {/* Search Input (5 cols) */}
+                <div className="md:col-span-5 relative">
+                  <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={productSearchQuery}
+                    onChange={(e) => setProductSearchQuery(e.target.value)}
+                    placeholder="Search by name, brand, SKU, or Zoho Item ID..."
+                    className="w-full pl-9 pr-9 py-2 text-xs rounded-xl border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#221914] text-neutral-900 dark:text-[#EDE4DA] placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-rose-500 transition"
+                  />
+                  {productSearchQuery && (
+                    <button
+                      onClick={() => setProductSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-0.5 rounded"
+                      title="Clear search"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Subcategory Filter (3 cols) */}
+                <div className="md:col-span-3">
+                  <select
+                    value={productSubCategoryFilter}
+                    onChange={(e) => setProductSubCategoryFilter(e.target.value)}
+                    className="w-full py-2 px-3 text-xs rounded-xl border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#221914] text-neutral-900 dark:text-[#EDE4DA] focus:outline-none focus:ring-1 focus:ring-rose-500 font-medium transition cursor-pointer"
+                  >
+                    <option value="ALL">All Categories ({products.length})</option>
+                    {catalogSubCategories.map((sub) => {
+                      const count = products.filter((p) => p.subCategory === sub).length;
+                      return (
+                        <option key={sub} value={sub}>
+                          {sub} ({count})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                {/* Stock Status Filter (2 cols) */}
+                <div className="md:col-span-2">
+                  <select
+                    value={productStockFilter}
+                    onChange={(e) => setProductStockFilter(e.target.value as any)}
+                    className="w-full py-2 px-3 text-xs rounded-xl border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#221914] text-neutral-900 dark:text-[#EDE4DA] focus:outline-none focus:ring-1 focus:ring-rose-500 font-medium transition cursor-pointer"
+                  >
+                    <option value="ALL">All Stock</option>
+                    <option value="IN_STOCK">In Stock (&gt;5)</option>
+                    <option value="LOW_STOCK">Low Stock (1-5)</option>
+                    <option value="OUT_OF_STOCK">Out of Stock (0)</option>
+                  </select>
+                </div>
+
+                {/* Zoho Status Filter (2 cols) */}
+                <div className="md:col-span-2">
+                  <select
+                    value={productZohoFilter}
+                    onChange={(e) => setProductZohoFilter(e.target.value as any)}
+                    className="w-full py-2 px-3 text-xs rounded-xl border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#221914] text-neutral-900 dark:text-[#EDE4DA] focus:outline-none focus:ring-1 focus:ring-rose-500 font-medium transition cursor-pointer"
+                  >
+                    <option value="ALL">All Zoho Sync</option>
+                    <option value="SYNCED">Synced Only</option>
+                    <option value="UNSYNCED">Unsynced Only</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Toolbar Sub-Row: Results counter, Sort, and Reset */}
+              <div className="flex flex-wrap justify-between items-center gap-3 pt-2 text-xs border-t border-neutral-100 dark:border-[#2C211A]/60">
+                <div className="flex items-center gap-3">
+                  <span className="text-neutral-500 dark:text-neutral-400">
+                    Showing <strong className="text-neutral-900 dark:text-[#EDE4DA]">{filteredProducts.length}</strong> of{' '}
+                    <strong>{products.length}</strong> products
+                  </span>
+                  {activeProductFilterCount > 0 && (
+                    <button
+                      onClick={handleResetProductFilters}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 hover:bg-rose-100 text-[11px] font-semibold transition"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      <span>Clear Filters ({activeProductFilterCount})</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {/* Sort By */}
+                  <div className="flex items-center gap-1.5">
+                    <ArrowUpDown className="w-3.5 h-3.5 text-neutral-400" />
+                    <span className="text-neutral-500 dark:text-neutral-400 text-[11px]">Sort:</span>
+                    <select
+                      value={productSortBy}
+                      onChange={(e) => setProductSortBy(e.target.value as any)}
+                      className="py-1 px-2.5 text-xs rounded-lg border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#221914] text-neutral-800 dark:text-[#EDE4DA] focus:outline-none cursor-pointer"
+                    >
+                      <option value="name_asc">Name (A → Z)</option>
+                      <option value="name_desc">Name (Z → A)</option>
+                      <option value="price_asc">Price (Low → High)</option>
+                      <option value="price_desc">Price (High → Low)</option>
+                      <option value="stock_asc">Stock (Low → High)</option>
+                      <option value="stock_desc">Stock (High → Low)</option>
+                      <option value="sku_asc">SKU (Ascending)</option>
+                    </select>
+                  </div>
+
+                  {/* Rows per page */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-neutral-500 dark:text-neutral-400 text-[11px]">Per page:</span>
+                    <select
+                      value={productItemsPerPage}
+                      onChange={(e) => setProductItemsPerPage(Number(e.target.value))}
+                      className="py-1 px-2 text-xs rounded-lg border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#221914] text-neutral-800 dark:text-[#EDE4DA] focus:outline-none cursor-pointer"
+                    >
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                      <option value={-1}>All (120)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs min-w-[720px]">
                 <thead className="bg-[#FAF5EF] dark:bg-[#1E1712] text-neutral-500 dark:text-neutral-400 uppercase tracking-wider font-semibold border-b border-neutral-200 dark:border-[#2C211A]">
@@ -1316,132 +1540,205 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-100 dark:divide-[#251B15]">
-                  {products.map((p) => {
-                    const isEdited = stockEdits[p.id] !== undefined;
-                    const currentStock = isEdited ? stockEdits[p.id] : p.stockQuantity;
+                  {filteredProducts.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center">
+                        <div className="max-w-sm mx-auto space-y-2">
+                          <Package className="w-8 h-8 text-neutral-300 dark:text-neutral-600 mx-auto" />
+                          <p className="font-semibold text-neutral-800 dark:text-neutral-200 text-sm">No products found</p>
+                          <p className="text-neutral-400 text-xs">No cosmetic items matched your search or filter criteria.</p>
+                          <button
+                            onClick={handleResetProductFilters}
+                            className="mt-3 px-3.5 py-1.5 rounded-xl bg-neutral-900 dark:bg-rose-900 text-white text-xs font-semibold hover:bg-neutral-800 transition shadow-sm"
+                          >
+                            Reset All Filters
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedProducts.map((p) => {
+                      const isEdited = stockEdits[p.id] !== undefined;
+                      const currentStock = isEdited ? stockEdits[p.id] : p.stockQuantity;
 
-                    return (
-                      <tr key={p.id} className="hover:bg-[#FAF9F6] dark:hover:bg-[#201813]/60 transition">
-                        <td className="py-3.5 px-4 flex items-center gap-3">
-                          <img
-                            src={getFullImageUrl(p.imageUrl)}
-                            alt={p.name}
-                            className="w-10 h-12 rounded-lg object-cover bg-neutral-100 dark:bg-neutral-800 flex-shrink-0 border border-neutral-200 dark:border-[#2C211A]"
-                            onError={handleImageError}
-                          />
-                          <div className="min-w-0">
-                            <p className="font-medium text-neutral-900 dark:text-[#EDE4DA] truncate max-w-xs">{p.name}</p>
-                            <p className="text-[11px] text-neutral-400 dark:text-neutral-500">{p.brand} • {p.volume}</p>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 text-neutral-600 dark:text-neutral-300">{p.subCategory}</td>
-                        <td className="py-3.5 px-4 font-mono text-neutral-800 dark:text-neutral-200 font-semibold">{p.sku}</td>
-                        <td className="py-3.5 px-4 font-mono text-neutral-500 dark:text-neutral-400">
-                          {p.zohoItemId ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded font-semibold text-[11px]">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                              {p.zohoItemId}
-                            </span>
-                          ) : (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 px-1.5 py-0.5 rounded text-[10px] font-medium">Unsynced</span>
-                              <button
-                                onClick={() => handleSyncSingleProduct(p.id)}
-                                disabled={singleSyncingId === p.id}
-                                className="px-2 py-0.5 bg-rose-700 text-white text-[10px] font-semibold rounded hover:bg-rose-800 transition flex items-center gap-1 shadow-sm"
-                                title="Sync this product to Zoho now"
+                      return (
+                        <tr key={p.id} className="hover:bg-[#FAF9F6] dark:hover:bg-[#201813]/60 transition">
+                          <td className="py-3.5 px-4 flex items-center gap-3">
+                            <img
+                              src={getFullImageUrl(p.imageUrl)}
+                              alt={p.name}
+                              className="w-10 h-12 rounded-lg object-cover bg-neutral-100 dark:bg-neutral-800 flex-shrink-0 border border-neutral-200 dark:border-[#2C211A]"
+                              onError={handleImageError}
+                            />
+                            <div className="min-w-0">
+                              <p className="font-medium text-neutral-900 dark:text-[#EDE4DA] truncate max-w-xs">{p.name}</p>
+                              <p className="text-[11px] text-neutral-400 dark:text-neutral-500">{p.brand} • {p.volume}</p>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 text-neutral-600 dark:text-neutral-300">{p.subCategory}</td>
+                          <td className="py-3.5 px-4 font-mono text-neutral-800 dark:text-neutral-200 font-semibold">{p.sku}</td>
+                          <td className="py-3.5 px-4 font-mono text-neutral-500 dark:text-neutral-400">
+                            {p.zohoItemId ? (
+                              <span className="inline-flex items-center gap-1 text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded font-semibold text-[11px]">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                                {p.zohoItemId}
+                              </span>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 px-1.5 py-0.5 rounded text-[10px] font-medium">Unsynced</span>
+                                <button
+                                  onClick={() => handleSyncSingleProduct(p.id)}
+                                  disabled={singleSyncingId === p.id}
+                                  className="px-2 py-0.5 bg-rose-700 text-white text-[10px] font-semibold rounded hover:bg-rose-800 transition flex items-center gap-1 shadow-sm"
+                                  title="Sync this product to Zoho now"
+                                >
+                                  {singleSyncingId === p.id ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Database className="w-2.5 h-2.5" />}
+                                  <span>Sync</span>
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 font-semibold text-neutral-900 dark:text-[#EDE4DA]">₹{p.price.toLocaleString()}</td>
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min="0"
+                                value={currentStock}
+                                onChange={(e) =>
+                                  setStockEdits({
+                                    ...stockEdits,
+                                    [p.id]: Math.max(0, parseInt(e.target.value) || 0),
+                                  })
+                                }
+                                className={`w-16 p-1.5 rounded-lg border text-xs font-bold text-center ${
+                                  isEdited ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-neutral-200 bg-white'
+                                }`}
+                              />
+                              <span
+                                className={`text-[10px] font-semibold ${
+                                  currentStock <= 0 ? 'text-red-600' : currentStock <= 5 ? 'text-amber-600' : 'text-emerald-600'
+                                }`}
                               >
-                                {singleSyncingId === p.id ? <Loader2 className="w-2.5 h-2.5 animate-spin" /> : <Database className="w-2.5 h-2.5" />}
-                                <span>Sync</span>
+                                {currentStock <= 0 ? 'Out' : currentStock <= 5 ? 'Low' : 'OK'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {isEdited && (
+                                <button
+                                  onClick={() => handleUpdateStock(p.id)}
+                                  disabled={savingStockId === p.id}
+                                  className="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition flex items-center gap-1 shadow"
+                                >
+                                  <Save className="w-3 h-3" />
+                                  <span>Save</span>
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => openStockAudit(p)}
+                                className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-sm"
+                                title="View stock audit trail & restock"
+                              >
+                                <History className="w-3 h-3 text-amber-700" />
+                                <span>History</span>
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setEditingProduct({ ...p });
+                                  let existing: ProductVariant[] = [];
+                                  if (p.variants && p.variants.length > 0) {
+                                    existing = p.variants;
+                                  } else if (p.variantsJson) {
+                                    try {
+                                      const parsed = JSON.parse(p.variantsJson);
+                                      if (Array.isArray(parsed)) existing = parsed;
+                                    } catch (_) {}
+                                  }
+                                  setEditVariants(existing);
+                                  setIsEditModalOpen(true);
+                                }}
+                                className="px-2.5 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-lg text-xs font-semibold flex items-center gap-1 transition border border-neutral-200"
+                                title="Edit product details"
+                              >
+                                <Edit3 className="w-3 h-3 text-neutral-600" />
+                                <span>Edit</span>
+                              </button>
+
+                              <button
+                                onClick={() => onNavigate('pdp', p.slug)}
+                                className="text-neutral-400 hover:text-neutral-800 p-1 rounded hover:bg-neutral-100"
+                                title="Preview on Storefront"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
                               </button>
                             </div>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-4 font-semibold text-neutral-900 dark:text-[#EDE4DA]">₹{p.price.toLocaleString()}</td>
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              min="0"
-                              value={currentStock}
-                              onChange={(e) =>
-                                setStockEdits({
-                                  ...stockEdits,
-                                  [p.id]: Math.max(0, parseInt(e.target.value) || 0),
-                                })
-                              }
-                              className={`w-16 p-1.5 rounded-lg border text-xs font-bold text-center ${
-                                isEdited ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-neutral-200 bg-white'
-                              }`}
-                            />
-                            <span
-                              className={`text-[10px] font-semibold ${
-                                currentStock <= 0 ? 'text-red-600' : currentStock <= 5 ? 'text-amber-600' : 'text-emerald-600'
-                              }`}
-                            >
-                              {currentStock <= 0 ? 'Out' : currentStock <= 5 ? 'Low' : 'OK'}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            {isEdited && (
-                              <button
-                                onClick={() => handleUpdateStock(p.id)}
-                                disabled={savingStockId === p.id}
-                                className="px-2.5 py-1 bg-emerald-600 text-white rounded-lg text-xs font-semibold hover:bg-emerald-700 transition flex items-center gap-1 shadow"
-                              >
-                                <Save className="w-3 h-3" />
-                                <span>Save</span>
-                              </button>
-                            )}
-
-                            <button
-                              onClick={() => openStockAudit(p)}
-                              className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-sm"
-                              title="View stock audit trail & restock"
-                            >
-                              <History className="w-3 h-3 text-amber-700" />
-                              <span>History</span>
-                            </button>
-
-                            <button
-                              onClick={() => {
-                                setEditingProduct({ ...p });
-                                let existing: ProductVariant[] = [];
-                                if (p.variants && p.variants.length > 0) {
-                                  existing = p.variants;
-                                } else if (p.variantsJson) {
-                                  try {
-                                    const parsed = JSON.parse(p.variantsJson);
-                                    if (Array.isArray(parsed)) existing = parsed;
-                                  } catch (_) {}
-                                }
-                                setEditVariants(existing);
-                                setIsEditModalOpen(true);
-                              }}
-                              className="px-2.5 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-lg text-xs font-semibold flex items-center gap-1 transition border border-neutral-200"
-                              title="Edit product details"
-                            >
-                              <Edit3 className="w-3 h-3 text-neutral-600" />
-                              <span>Edit</span>
-                            </button>
-
-                            <button
-                              onClick={() => onNavigate('pdp', p.slug)}
-                              className="text-neutral-400 hover:text-neutral-800 p-1 rounded hover:bg-neutral-100"
-                              title="Preview on Storefront"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
+
+            {/* PAGINATION FOOTER */}
+            {filteredProducts.length > 0 && productItemsPerPage !== -1 && totalProductPages > 1 && (
+              <div className="p-4 border-t border-neutral-100 dark:border-[#2C211A] flex flex-wrap justify-between items-center gap-3 bg-[#FAF9F6] dark:bg-[#1A130E] text-xs">
+                <span className="text-neutral-500 dark:text-neutral-400">
+                  Page <strong className="text-neutral-800 dark:text-[#EDE4DA]">{productPage}</strong> of{' '}
+                  <strong className="text-neutral-800 dark:text-[#EDE4DA]">{totalProductPages}</strong> ({filteredProducts.length} total filtered items)
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    disabled={productPage <= 1}
+                    onClick={() => setProductPage((prev) => Math.max(1, prev - 1))}
+                    className="p-1.5 rounded-lg border border-neutral-200 dark:border-[#382B21] bg-white dark:bg-[#221914] text-neutral-700 dark:text-neutral-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-neutral-50 transition"
+                    title="Previous page"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  {Array.from({ length: totalProductPages }, (_, i) => i + 1).map((pg) => {
+                    if (
+                      pg === 1 ||
+                      pg === totalProductPages ||
+                      (pg >= productPage - 1 && pg <= productPage + 1)
+                    ) {
+                      return (
+                        <button
+                          key={pg}
+                          onClick={() => setProductPage(pg)}
+                          className={`w-7 h-7 rounded-lg text-xs font-semibold transition ${
+                            productPage === pg
+                              ? 'bg-rose-700 text-white'
+                              : 'bg-white dark:bg-[#221914] border border-neutral-200 dark:border-[#382B21] text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50'
+                          }`}
+                        >
+                          {pg}
+                        </button>
+                      );
+                    }
+                    if (pg === productPage - 2 || pg === productPage + 2) {
+                      return <span key={pg} className="px-1 text-neutral-400">...</span>;
+                    }
+                    return null;
+                  })}
+
+                  <button
+                    disabled={productPage >= totalProductPages}
+                    onClick={() => setProductPage((prev) => Math.min(totalProductPages, prev + 1))}
+                    className="p-1.5 rounded-lg border border-neutral-200 dark:border-[#382B21] bg-white dark:bg-[#221914] text-neutral-700 dark:text-neutral-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-neutral-50 transition"
+                    title="Next page"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
