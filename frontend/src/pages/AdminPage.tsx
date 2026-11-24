@@ -49,7 +49,8 @@ import {
   Sparkles as SparklesIcon,
   ChevronLeft,
   ChevronRight,
-  ArrowUpDown
+  ArrowUpDown,
+  Menu
 } from 'lucide-react';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { api } from '../services/api';
@@ -62,6 +63,9 @@ import { AdminFooterPoliciesEditor } from '../components/AdminFooterPoliciesEdit
 import { AdminCategoriesEditor } from '../components/AdminCategoriesEditor';
 import { AdminStorefrontControls } from '../components/AdminStorefrontControls';
 import { AdminVariantsEditor } from '../components/AdminVariantsEditor';
+import { AdminHomepageEditor } from '../components/AdminHomepageEditor';
+
+export type AdminTab = 'inventory' | 'homepage' | 'plp_pdp_settings' | 'categories' | 'orders' | 'returns' | 'ledger' | 'reviews' | 'zoho' | 'footer_policies';
 
 interface AdminPageProps {
   onNavigate: (page: string, param?: string) => void;
@@ -83,7 +87,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   const [loginError, setLoginError] = useState('');
 
   // Dashboard states
-  const [activeTab, setActiveTab] = useState<'inventory' | 'orders' | 'zoho' | 'ledger' | 'reviews' | 'returns' | 'footer_policies' | 'categories' | 'plp_pdp_settings'>('inventory');
+  const [activeTab, setActiveTab] = useState<AdminTab>('inventory');
+  const [isSidebarOpenMobile, setIsSidebarOpenMobile] = useState<boolean>(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [zohoStatus, setZohoStatus] = useState<ZohoStatus | null>(null);
@@ -1193,6 +1198,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
       <header className="bg-[#19120E] text-white border-b border-[#2e231c] px-4 sm:px-8 py-3.5 sticky top-0 z-40 shadow-lg">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsSidebarOpenMobile((prev) => !prev)}
+              className="lg:hidden p-2 rounded-xl bg-[#281E18] hover:bg-[#342720] text-neutral-300 border border-[#3E2E25] transition"
+              title="Toggle admin sidebar"
+              aria-label="Toggle admin sidebar"
+            >
+              {isSidebarOpenMobile ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+            </button>
             <div className="w-9 h-9 rounded-xl bg-rose-600/20 text-rose-400 border border-rose-500/30 flex items-center justify-center">
               <ShieldCheck className="w-5 h-5" />
             </div>
@@ -1245,127 +1258,240 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         </div>
       </header>
 
-      {/* ADMIN BODY */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 flex-1 w-full">
-        {/* Navigation Tabs */}
-        <div className="flex border-b border-neutral-200 dark:border-[#2C211A] gap-2 text-xs font-semibold overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('inventory')}
-            className={`px-5 py-3 rounded-t-xl transition flex items-center gap-2 ${
-              activeTab === 'inventory'
-                ? 'bg-white dark:bg-[#1A1410] border-t border-l border-r border-neutral-200 dark:border-[#2C211A] text-rose-800 dark:text-rose-400 shadow-sm'
-                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-white'
-            }`}
-          >
-            <Package className="w-4 h-4" />
-            <span>Product Catalog ({products.length})</span>
-          </button>
+      {/* ADMIN BODY WITH SIDEBAR LAYOUT */}
+      <div className="max-w-[1600px] mx-auto w-full px-3 sm:px-6 lg:px-8 py-6 flex-1 flex flex-col lg:flex-row gap-6 items-start">
+        {/* Mobile Backdrop */}
+        {isSidebarOpenMobile && (
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 lg:hidden transition-opacity"
+            onClick={() => setIsSidebarOpenMobile(false)}
+          />
+        )}
 
-          <button
-            onClick={() => setActiveTab('zoho')}
-            className={`px-5 py-3 rounded-t-xl transition flex items-center gap-2 ${
-              activeTab === 'zoho'
-                ? 'bg-white dark:bg-[#1A1410] border-t border-l border-r border-neutral-200 dark:border-[#2C211A] text-rose-800 dark:text-rose-400 shadow-sm'
-                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-white'
-            }`}
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span>Zoho ERP Integration</span>
-          </button>
+        {/* SIDEBAR NAVIGATION */}
+        <aside
+          className={`
+            fixed lg:sticky top-0 lg:top-20 inset-y-0 left-0 z-50 lg:z-10
+            w-72 lg:w-64 shrink-0
+            bg-white dark:bg-[#16100C] border-r lg:border border-neutral-200 dark:border-[#2C211A] lg:rounded-2xl
+            p-4 flex flex-col justify-between
+            h-full lg:h-auto lg:max-h-[calc(100vh-6rem)] overflow-y-auto
+            shadow-2xl lg:shadow-xs
+            transition-transform duration-300 ease-in-out
+            ${isSidebarOpenMobile ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          `}
+        >
+          <div className="space-y-6">
+            {/* Mobile Header in Drawer */}
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-100 dark:border-[#2C211A] lg:hidden">
+              <span className="font-serif font-bold text-sm text-neutral-900 dark:text-[#EDE4DA]">Admin Menu</span>
+              <button
+                onClick={() => setIsSidebarOpenMobile(false)}
+                className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-          <button
-            onClick={() => setActiveTab('orders')}
-            className={`px-5 py-3 rounded-t-xl transition flex items-center gap-2 ${
-              activeTab === 'orders'
-                ? 'bg-white dark:bg-[#1A1410] border-t border-l border-r border-neutral-200 dark:border-[#2C211A] text-rose-800 dark:text-rose-400 shadow-sm'
-                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-white'
-            }`}
-          >
-            <ShoppingCart className="w-4 h-4" />
-            <span>Customer Orders ({orders.length})</span>
-          </button>
+            {/* Nav Group 1: Storefront & Catalog */}
+            <div className="space-y-1">
+              <p className="px-3 text-[10px] font-bold tracking-wider uppercase text-neutral-400 dark:text-neutral-500 mb-2">
+                Storefront & Catalog
+              </p>
+              
+              <button
+                onClick={() => { setActiveTab('inventory'); setIsSidebarOpenMobile(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  activeTab === 'inventory'
+                    ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 shadow-2xs font-bold'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:bg-[#FAF9F6] dark:hover:bg-[#201813] hover:text-neutral-900 dark:hover:text-[#EDE4DA]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Package className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                  <span>Product Catalog</span>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-[#251D18] text-neutral-600 dark:text-neutral-400 font-mono">
+                  {products.length}
+                </span>
+              </button>
 
-          <button
-            onClick={() => {
-              setActiveTab('ledger');
-              loadGlobalLedger();
-            }}
-            className={`px-5 py-3 rounded-t-xl transition flex items-center gap-2 ${
-              activeTab === 'ledger'
-                ? 'bg-white dark:bg-[#1A1410] border-t border-l border-r border-neutral-200 dark:border-[#2C211A] text-rose-800 dark:text-rose-400 shadow-sm'
-                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-white'
-            }`}
-          >
-            <History className="w-4 h-4" />
-            <span>Stock Audit Ledger</span>
-          </button>
+              <button
+                onClick={() => { setActiveTab('homepage'); setIsSidebarOpenMobile(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  activeTab === 'homepage'
+                    ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 shadow-2xs font-bold'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:bg-[#FAF9F6] dark:hover:bg-[#201813] hover:text-neutral-900 dark:hover:text-[#EDE4DA]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Sparkles className="w-4 h-4 text-amber-500 dark:text-amber-400" />
+                  <span>Homepage & Banners</span>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 font-bold">
+                  Live
+                </span>
+              </button>
 
-          <button
-            onClick={() => {
-              setActiveTab('reviews');
-              loadAdminReviews();
-            }}
-            className={`px-5 py-3 rounded-t-xl transition flex items-center gap-2 ${
-              activeTab === 'reviews'
-                ? 'bg-white dark:bg-[#1A1410] border-t border-l border-r border-neutral-200 dark:border-[#2C211A] text-rose-800 dark:text-rose-400 shadow-sm'
-                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-white'
-            }`}
-          >
-            <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-            <span>Product Reviews ({adminReviews.length})</span>
-          </button>
+              <button
+                onClick={() => { setActiveTab('plp_pdp_settings'); setIsSidebarOpenMobile(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  activeTab === 'plp_pdp_settings'
+                    ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 shadow-2xs font-bold'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:bg-[#FAF9F6] dark:hover:bg-[#201813] hover:text-neutral-900 dark:hover:text-[#EDE4DA]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <SlidersHorizontal className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
+                  <span>PLP & PDP Controls</span>
+                </div>
+              </button>
 
-          <button
-            onClick={() => {
-              setActiveTab('returns');
-              fetchReturns();
-            }}
-            className={`px-5 py-3 rounded-t-xl transition flex items-center gap-2 ${
-              activeTab === 'returns'
-                ? 'bg-white dark:bg-[#1A1410] border-t border-l border-r border-neutral-200 dark:border-[#2C211A] text-rose-800 dark:text-rose-400 shadow-sm'
-                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-white'
-            }`}
-          >
-            <RotateCcw className="w-4 h-4 text-rose-600" />
-            <span>Returns & Exchanges ({allReturns.length})</span>
-          </button>
+              <button
+                onClick={() => { setActiveTab('categories'); setIsSidebarOpenMobile(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  activeTab === 'categories'
+                    ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 shadow-2xs font-bold'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:bg-[#FAF9F6] dark:hover:bg-[#201813] hover:text-neutral-900 dark:hover:text-[#EDE4DA]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Layers className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                  <span>Navbar Categories</span>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-[#251D18] text-neutral-600 dark:text-neutral-400 font-mono">
+                  {navbarCategories.length}
+                </span>
+              </button>
+            </div>
 
-          <button
-            onClick={() => setActiveTab('footer_policies')}
-            className={`px-5 py-3 rounded-t-xl transition flex items-center gap-2 ${
-              activeTab === 'footer_policies'
-                ? 'bg-white dark:bg-[#1A1410] border-t border-l border-r border-neutral-200 dark:border-[#2C211A] text-purple-700 dark:text-purple-400 shadow-sm'
-                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-white'
-            }`}
-          >
-            <FileText className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-            <span>Footer & Policies CMS</span>
-          </button>
+            {/* Nav Group 2: Sales & Fulfillment */}
+            <div className="space-y-1">
+              <p className="px-3 text-[10px] font-bold tracking-wider uppercase text-neutral-400 dark:text-neutral-500 mb-2">
+                Sales & Fulfillment
+              </p>
 
-          <button
-            onClick={() => setActiveTab('categories')}
-            className={`px-5 py-3 rounded-t-xl transition flex items-center gap-2 ${
-              activeTab === 'categories'
-                ? 'bg-white dark:bg-[#1A1410] border-t border-l border-r border-neutral-200 dark:border-[#2C211A] text-rose-700 dark:text-rose-400 shadow-sm'
-                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-white'
-            }`}
-          >
-            <Layers className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-            <span>Navbar & Categories</span>
-          </button>
+              <button
+                onClick={() => { setActiveTab('orders'); setIsSidebarOpenMobile(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  activeTab === 'orders'
+                    ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 shadow-2xs font-bold'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:bg-[#FAF9F6] dark:hover:bg-[#201813] hover:text-neutral-900 dark:hover:text-[#EDE4DA]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <ShoppingCart className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  <span>Customer Orders</span>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-[#251D18] text-neutral-600 dark:text-neutral-400 font-mono">
+                  {orders.length}
+                </span>
+              </button>
 
-          <button
-            onClick={() => setActiveTab('plp_pdp_settings')}
-            className={`px-5 py-3 rounded-t-xl transition flex items-center gap-2 ${
-              activeTab === 'plp_pdp_settings'
-                ? 'bg-white dark:bg-[#1A1410] border-t border-l border-r border-neutral-200 dark:border-[#2C211A] text-amber-600 dark:text-amber-400 shadow-sm'
-                : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-white'
-            }`}
-          >
-            <SlidersHorizontal className="w-4 h-4 text-amber-500" />
-            <span>PLP & PDP Controls</span>
-          </button>
-        </div>
+              <button
+                onClick={() => { setActiveTab('returns'); fetchReturns(); setIsSidebarOpenMobile(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  activeTab === 'returns'
+                    ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 shadow-2xs font-bold'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:bg-[#FAF9F6] dark:hover:bg-[#201813] hover:text-neutral-900 dark:hover:text-[#EDE4DA]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <RotateCcw className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                  <span>Returns & Exchanges</span>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-[#251D18] text-neutral-600 dark:text-neutral-400 font-mono">
+                  {allReturns.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('ledger'); loadGlobalLedger(); setIsSidebarOpenMobile(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  activeTab === 'ledger'
+                    ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 shadow-2xs font-bold'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:bg-[#FAF9F6] dark:hover:bg-[#201813] hover:text-neutral-900 dark:hover:text-[#EDE4DA]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <History className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
+                  <span>Stock Audit Ledger</span>
+                </div>
+              </button>
+            </div>
+
+            {/* Nav Group 3: Trust & Operations */}
+            <div className="space-y-1">
+              <p className="px-3 text-[10px] font-bold tracking-wider uppercase text-neutral-400 dark:text-neutral-500 mb-2">
+                Trust & Operations
+              </p>
+
+              <button
+                onClick={() => { setActiveTab('reviews'); loadAdminReviews(); setIsSidebarOpenMobile(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  activeTab === 'reviews'
+                    ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 shadow-2xs font-bold'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:bg-[#FAF9F6] dark:hover:bg-[#201813] hover:text-neutral-900 dark:hover:text-[#EDE4DA]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                  <span>Product Reviews</span>
+                </div>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-[#251D18] text-neutral-600 dark:text-neutral-400 font-mono">
+                  {adminReviews.length}
+                </span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('zoho'); setIsSidebarOpenMobile(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  activeTab === 'zoho'
+                    ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 shadow-2xs font-bold'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:bg-[#FAF9F6] dark:hover:bg-[#201813] hover:text-neutral-900 dark:hover:text-[#EDE4DA]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <RefreshCw className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <span>Zoho ERP Integration</span>
+                </div>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                  zohoStatus?.isConnected ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
+                }`}>
+                  {zohoStatus?.isConnected ? 'Synced' : 'Offline'}
+                </span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab('footer_policies'); setIsSidebarOpenMobile(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  activeTab === 'footer_policies'
+                    ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 shadow-2xs font-bold'
+                    : 'text-neutral-600 dark:text-neutral-400 hover:bg-[#FAF9F6] dark:hover:bg-[#201813] hover:text-neutral-900 dark:hover:text-[#EDE4DA]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <FileText className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  <span>Footer & Policies CMS</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Storefront Link at bottom of sidebar */}
+          <div className="pt-4 mt-6 border-t border-neutral-100 dark:border-[#2C211A]">
+            <button
+              onClick={() => onNavigate('home')}
+              className="w-full py-2 px-3 rounded-xl border border-neutral-200 dark:border-[#382B21] text-xs font-semibold text-neutral-700 dark:text-[#EDE4DA] hover:bg-[#FAF9F6] dark:hover:bg-[#201813] transition flex items-center justify-center gap-2"
+            >
+              <Eye className="w-3.5 h-3.5 text-neutral-500" />
+              <span>Preview Storefront</span>
+            </button>
+          </div>
+        </aside>
+
+        {/* MAIN ACTIVE TAB CONTENT */}
+        <main className="flex-1 min-w-0 w-full space-y-6">
 
         {/* TAB 1: PRODUCT CATALOG & INVENTORY TABLE */}
         {activeTab === 'inventory' && (
@@ -2798,7 +2924,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
         {activeTab === 'plp_pdp_settings' && (
           <AdminStorefrontControls onNavigate={onNavigate} showToast={showToast} />
         )}
+
+        {/* TAB 10: HOMEPAGE & HERO CMS CONTROLS */}
+        {activeTab === 'homepage' && (
+          <AdminHomepageEditor onNavigate={onNavigate} showToast={showToast} />
+        )}
       </main>
+    </div>
 
       {/* MODAL 0: PRODUCT STOCK AUDIT TRAIL & RESTOCK DIALOG */}
       {auditProduct && (

@@ -3,15 +3,21 @@ import { ArrowRight, Sparkles, Star, Award, Droplets, ShieldCheck, CheckCircle2 
 import { Product } from '../types';
 import { api } from '../services/api';
 import { ProductCard } from '../components/ProductCard';
+import { useSettings } from '../context/SettingsContext';
+import { getFullImageUrl } from '../utils/image';
 
 interface HomePageProps {
   onNavigate: (page: string, param?: string) => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
+  const { settings } = useSettings();
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [bestSellers, setBestSellers] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const featuredLimit = Number(settings.home_featured_count || 4);
+  const bestSellersLimit = Number(settings.home_bestsellers_count || 4);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -21,8 +27,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           api.getFeaturedProducts(),
           api.getProducts({ sortBy: 'rating' })
         ]);
-        setFeaturedProducts(featured.slice(0, 4));
-        setBestSellers(all.slice(0, 4));
+        setFeaturedProducts(featured.slice(0, featuredLimit));
+        setBestSellers(all.slice(0, bestSellersLimit));
       } catch (err) {
         console.error(err);
       } finally {
@@ -30,9 +36,9 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       }
     };
     fetchData();
-  }, []);
+  }, [featuredLimit, bestSellersLimit]);
 
-  const subCategories = [
+  const defaultSubCategories = [
     {
       title: 'Serums & Elixirs',
       subCat: 'Serums & Treatments',
@@ -59,6 +65,16 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
     },
   ];
 
+  const subCategories = React.useMemo(() => {
+    if (settings.home_categories_json) {
+      try {
+        const parsed = JSON.parse(settings.home_categories_json);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (_) {}
+    }
+    return defaultSubCategories;
+  }, [settings.home_categories_json]);
+
   return (
     <div className="space-y-16 sm:space-y-24 pb-16">
       {/* Hero Section */}
@@ -67,23 +83,25 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           <div className="lg:col-span-7 space-y-5 sm:space-y-6">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-rose-300 text-xs tracking-wider uppercase font-medium">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Organic Clinical Beauty</span>
+              <span>{settings.home_hero_badge || 'Organic Clinical Beauty'}</span>
             </div>
 
             <h1 className="font-serif text-3xl sm:text-5xl lg:text-6xl leading-[1.18] sm:leading-[1.15] font-medium tracking-tight">
-              Luminescence Born From <span className="italic font-normal text-rose-200">Pure Botanicals</span>
+              {settings.home_hero_title || (
+                <>Luminescence Born From <span className="italic font-normal text-rose-200">Pure Botanicals</span></>
+              )}
             </h1>
 
             <p className="text-neutral-300 text-sm sm:text-lg max-w-xl leading-relaxed font-light">
-              Experience clinically proven organic formulations that restore your skin barrier, hydrate deeply, and provide an effortless, radiant glow for every skin type.
+              {settings.home_hero_subtitle || 'Experience clinically proven organic formulations that restore your skin barrier, hydrate deeply, and provide an effortless, radiant glow for every skin type.'}
             </p>
 
             <div className="flex flex-wrap items-center gap-4 pt-2">
               <button
-                onClick={() => onNavigate('plp', 'All')}
-                className="w-full sm:w-auto px-8 py-3.5 sm:py-4 rounded-full bg-white text-[#1E1611] font-semibold text-sm hover:bg-rose-100 transition shadow-xl flex items-center justify-center gap-2 group"
+                onClick={() => onNavigate('plp', settings.home_hero_cta_target || 'All')}
+                className="w-full sm:w-auto px-8 py-3.5 sm:py-4 rounded-full bg-white text-[#1E1611] font-semibold text-sm hover:bg-rose-100 transition shadow-xl flex items-center justify-center gap-2 group cursor-pointer"
               >
-                <span>Shop Cosmetics Range</span>
+                <span>{settings.home_hero_cta_text || 'Shop Cosmetics Range'}</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition" />
               </button>
             </div>
@@ -91,16 +109,16 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             {/* Quick stats */}
             <div className="grid grid-cols-3 gap-2 sm:gap-6 pt-6 border-t border-white/15 text-[10px] sm:text-xs text-neutral-300">
               <div>
-                <p className="font-serif text-xl sm:text-2xl font-bold text-white">100%</p>
-                <p className="text-neutral-400">Vegan & Clean</p>
+                <p className="font-serif text-xl sm:text-2xl font-bold text-white">{settings.home_hero_stat1_value || '100%'}</p>
+                <p className="text-neutral-400">{settings.home_hero_stat1_label || 'Vegan & Clean'}</p>
               </div>
               <div>
-                <p className="font-serif text-xl sm:text-2xl font-bold text-white">4.9 ★</p>
-                <p className="text-neutral-400">Customer Rating</p>
+                <p className="font-serif text-xl sm:text-2xl font-bold text-white">{settings.home_hero_stat2_value || '4.9 ★'}</p>
+                <p className="text-neutral-400">{settings.home_hero_stat2_label || 'Customer Rating'}</p>
               </div>
               <div>
-                <p className="font-serif text-xl sm:text-2xl font-bold text-white">Clinical</p>
-                <p className="text-neutral-400">Approved Formulas</p>
+                <p className="font-serif text-xl sm:text-2xl font-bold text-white">{settings.home_hero_stat3_value || 'Clinical'}</p>
+                <p className="text-neutral-400">{settings.home_hero_stat3_label || 'Approved Formulas'}</p>
               </div>
             </div>
           </div>
@@ -109,23 +127,34 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             <div className="relative mx-auto max-w-sm lg:max-w-none">
               <div className="aspect-[3/4] rounded-3xl overflow-hidden shadow-2xl border-4 border-white/10">
                 <img
-                  src="https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=1000&q=85"
-                  alt="Lumière Glow Serum"
+                  src={getFullImageUrl(settings.home_hero_image || 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=1000&q=85')}
+                  alt={settings.home_hero_title || 'Lumière Hero'}
                   className="w-full h-full object-cover"
                 />
               </div>
 
               {/* Floating Highlight Card */}
-              <div className="absolute -bottom-4 left-3 sm:-bottom-6 sm:-left-6 bg-white/95 dark:bg-[#1A1410]/95 backdrop-blur-md text-neutral-900 dark:text-white p-3 sm:p-4 rounded-2xl shadow-xl border border-white/60 dark:border-[#2C211A] max-w-[200px] sm:max-w-[220px]">
-                <div className="flex items-center gap-1.5 text-amber-500 mb-1">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-3.5 h-3.5 fill-current" />
-                  ))}
+              {settings.home_hero_floating_card_enabled !== 'false' && (
+                <div className="absolute -bottom-4 left-3 sm:-bottom-6 sm:-left-6 bg-white/95 dark:bg-[#1A1410]/95 backdrop-blur-md text-neutral-900 dark:text-white p-3 sm:p-4 rounded-2xl shadow-xl border border-white/60 dark:border-[#2C211A] max-w-[200px] sm:max-w-[220px]">
+                  <div className="flex items-center gap-1.5 text-amber-500 mb-1">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                    ))}
+                  </div>
+                  <p className="text-xs font-bold text-neutral-900 dark:text-white line-clamp-1">
+                    {settings.home_hero_floating_title || 'Lumière 10% Niacinamide'}
+                  </p>
+                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    {settings.home_hero_floating_subtitle || '128 Verified Reviews'}
+                  </p>
+                  <p className="text-xs font-semibold text-rose-700 dark:text-rose-400 mt-1">
+                    ₹{settings.home_hero_floating_price || '899'}{' '}
+                    <span className="line-through text-neutral-400 font-normal">
+                      ₹{settings.home_hero_floating_original_price || '1,299'}
+                    </span>
+                  </p>
                 </div>
-                <p className="text-xs font-bold text-neutral-900 dark:text-white line-clamp-1">Lumière 10% Niacinamide</p>
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400">128 Verified Reviews</p>
-                <p className="text-xs font-semibold text-rose-700 dark:text-rose-400 mt-1">₹899 <span className="line-through text-neutral-400 font-normal">₹1,299</span></p>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -144,7 +173,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
           </div>
           <button
             onClick={() => onNavigate('plp', 'All')}
-            className="text-xs font-semibold text-rose-700 dark:text-rose-400 hover:text-rose-800 flex items-center gap-1 mt-3 md:mt-0"
+            className="text-xs font-semibold text-rose-700 dark:text-rose-400 hover:text-rose-800 flex items-center gap-1 mt-3 md:mt-0 cursor-pointer"
           >
             <span>View All Cosmetics</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -160,7 +189,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             >
               <div className="aspect-[4/3] overflow-hidden bg-neutral-100 dark:bg-[#231A14]">
                 <img
-                  src={cat.image}
+                  src={getFullImageUrl(cat.image)}
                   alt={cat.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
@@ -183,104 +212,110 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
       </section>
 
       {/* Featured Cosmetics Products */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-xl mx-auto mb-10">
-          <span className="text-xs uppercase tracking-widest text-rose-700 dark:text-rose-400 font-bold">
-            Editor's Choice
-          </span>
-          <h2 className="font-serif text-3xl text-neutral-900 dark:text-[#EDE4DA] mt-1">
-            Featured Cosmetics Essentials
-          </h2>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2">
-            Top-rated botanical serums, nourishing lipsticks, and dermatologist-approved daily barrier protection.
-          </p>
-        </div>
-
-        {loading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-4 lg:gap-6">
-            {[1, 2, 3, 4].map((n) => (
-              <div key={n} className="bg-white dark:bg-[#1A1410] rounded-2xl h-64 animate-pulse border border-neutral-100 dark:border-[#2C211A]" />
-            ))}
+      {settings.home_featured_enabled !== 'false' && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-xl mx-auto mb-10">
+            <span className="text-xs uppercase tracking-widest text-rose-700 dark:text-rose-400 font-bold">
+              {settings.home_featured_tagline || "Editor's Choice"}
+            </span>
+            <h2 className="font-serif text-3xl text-neutral-900 dark:text-[#EDE4DA] mt-1">
+              {settings.home_featured_title || 'Featured Cosmetics Essentials'}
+            </h2>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2">
+              {settings.home_featured_subtitle || 'Top-rated botanical serums, nourishing lipsticks, and dermatologist-approved daily barrier protection.'}
+            </p>
           </div>
-        ) : (
+
+          {loading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-4 lg:gap-6">
+              {[1, 2, 3, 4].map((n) => (
+                <div key={n} className="bg-white dark:bg-[#1A1410] rounded-2xl h-64 animate-pulse border border-neutral-100 dark:border-[#2C211A]" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-4 lg:gap-6">
+              {featuredProducts.map((product) => (
+                <ProductCard key={product.id} product={product} onNavigate={onNavigate} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Clean Beauty Banner */}
+      {settings.home_clean_banner_enabled !== 'false' && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-[#FAF5EF] dark:bg-[#1A1410] rounded-3xl p-8 sm:p-12 border border-[#E8DEC8] dark:border-[#2C211A] grid grid-cols-1 lg:grid-cols-3 gap-8 items-center transition-colors">
+            <div className="lg:col-span-2 space-y-4">
+              <span className="text-xs uppercase tracking-widest text-rose-700 dark:text-rose-400 font-bold flex items-center gap-1.5">
+                <Award className="w-4 h-4" />
+                <span>{settings.home_clean_badge || 'The Clean Beauty Standard'}</span>
+              </span>
+              <h3 className="font-serif text-2xl sm:text-3xl text-neutral-900 dark:text-[#EDE4DA]">
+                {settings.home_clean_title || 'Formulated With Care for Sensitive Skin'}
+              </h3>
+              <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed font-light">
+                {settings.home_clean_desc || 'Every formula in our cosmetics collection is created with skin-barrier-first science. We source cold-pressed organic botanicals and bio-compatible ceramides that work with your skin, never against it.'}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs text-neutral-700 dark:text-neutral-300">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <span>{settings.home_clean_bullet_1 || '100% Free of Parabens & Phthalates'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <span>{settings.home_clean_bullet_2 || 'Non-Comedogenic & Low Sensitizing'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <span>{settings.home_clean_bullet_3 || 'Sustainably Sourced Raw Ingredients'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                  <span>{settings.home_clean_bullet_4 || 'Recyclable Luxury Glass Packaging'}</span>
+                </div>
+              </div>
+            </div>
+            <div className="text-center lg:text-right">
+              <button
+                onClick={() => onNavigate('plp', settings.home_clean_cta_target || 'All')}
+                className="px-8 py-3.5 rounded-full bg-[#1E1611] dark:bg-rose-900 text-white text-xs font-semibold hover:bg-rose-700 transition shadow-lg cursor-pointer"
+              >
+                {settings.home_clean_cta_text || 'Explore Full Range →'}
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Best Sellers Section */}
+      {settings.home_bestsellers_enabled !== 'false' && (
+        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-8">
+            <div>
+              <span className="text-xs uppercase tracking-widest text-rose-700 dark:text-rose-400 font-bold">
+                {settings.home_bestsellers_tagline || 'Most Loved'}
+              </span>
+              <h2 className="font-serif text-3xl text-neutral-900 dark:text-[#EDE4DA] mt-1">
+                {settings.home_bestsellers_title || 'Best Selling Cosmetics'}
+              </h2>
+            </div>
+            <button
+              onClick={() => onNavigate('plp', 'All')}
+              className="text-xs font-semibold text-rose-700 dark:text-rose-400 hover:text-rose-800 flex items-center gap-1 mt-3 md:mt-0 cursor-pointer"
+            >
+              <span>Browse Full Catalog</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-4 lg:gap-6">
-            {featuredProducts.map((product) => (
+            {bestSellers.map((product) => (
               <ProductCard key={product.id} product={product} onNavigate={onNavigate} />
             ))}
           </div>
-        )}
-      </section>
-
-      {/* Clean Beauty Banner */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-[#FAF5EF] dark:bg-[#1A1410] rounded-3xl p-8 sm:p-12 border border-[#E8DEC8] dark:border-[#2C211A] grid grid-cols-1 lg:grid-cols-3 gap-8 items-center transition-colors">
-          <div className="lg:col-span-2 space-y-4">
-            <span className="text-xs uppercase tracking-widest text-rose-700 dark:text-rose-400 font-bold flex items-center gap-1.5">
-              <Award className="w-4 h-4" />
-              <span>The Clean Beauty Standard</span>
-            </span>
-            <h3 className="font-serif text-2xl sm:text-3xl text-neutral-900 dark:text-[#EDE4DA]">
-              Formulated With Care for Sensitive Skin
-            </h3>
-            <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed font-light">
-              Every formula in our cosmetics collection is created with skin-barrier-first science. We source cold-pressed organic botanicals and bio-compatible ceramides that work with your skin, never against it.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs text-neutral-700 dark:text-neutral-300">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span>100% Free of Parabens & Phthalates</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span>Non-Comedogenic & Low Sensitizing</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span>Sustainably Sourced Raw Ingredients</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span>Recyclable Luxury Glass Packaging</span>
-              </div>
-            </div>
-          </div>
-          <div className="text-center lg:text-right">
-            <button
-              onClick={() => onNavigate('plp', 'All')}
-              className="px-8 py-3.5 rounded-full bg-[#1E1611] dark:bg-rose-900 text-white text-xs font-semibold hover:bg-rose-700 transition shadow-lg"
-            >
-              Explore Full Range →
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* Best Sellers Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-8">
-          <div>
-            <span className="text-xs uppercase tracking-widest text-rose-700 dark:text-rose-400 font-bold">
-              Most Loved
-            </span>
-            <h2 className="font-serif text-3xl text-neutral-900 dark:text-[#EDE4DA] mt-1">
-              Best Selling Cosmetics
-            </h2>
-          </div>
-          <button
-            onClick={() => onNavigate('plp', 'All')}
-            className="text-xs font-semibold text-rose-700 dark:text-rose-400 hover:text-rose-800 flex items-center gap-1 mt-3 md:mt-0"
-          >
-            <span>Browse Full Catalog</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-4 lg:gap-6">
-          {bestSellers.map((product) => (
-            <ProductCard key={product.id} product={product} onNavigate={onNavigate} />
-          ))}
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 };
