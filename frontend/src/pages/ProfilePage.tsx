@@ -2436,16 +2436,29 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                   />
                 </div>
                 <div>
-                  <label className="font-semibold text-neutral-800 dark:text-[#EDE4DA] block mb-1">
-                    Contact Phone Number *
-                  </label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="font-semibold text-neutral-800 dark:text-[#EDE4DA]">
+                      Contact Phone Number *
+                    </label>
+                    <span className={`text-[10px] font-mono ${addrPhone.length === 10 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-neutral-400'}`}>
+                      {addrPhone.length}/10 digits
+                    </span>
+                  </div>
                   <input
                     type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]{10}"
+                    maxLength={10}
                     required
                     value={addrPhone}
-                    onChange={(e) => setAddrPhone(e.target.value)}
-                    placeholder="e.g., +91 9876543210"
-                    className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#251D18] text-neutral-900 dark:text-[#EDE4DA] placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                    onChange={(e) => {
+                      let digits = e.target.value.replace(/\D/g, '');
+                      if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
+                      else if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+                      setAddrPhone(digits.slice(0, 10));
+                    }}
+                    placeholder="10-digit mobile number"
+                    className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#251D18] text-neutral-900 dark:text-[#EDE4DA] placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-rose-500 font-mono tracking-wide"
                   />
                 </div>
               </div>
@@ -2907,15 +2920,28 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
               </div>
 
               <div>
-                <label className="font-semibold text-neutral-800 dark:text-[#EDE4DA] block mb-1">
-                  Phone Number
-                </label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="font-semibold text-neutral-800 dark:text-[#EDE4DA]">
+                    Phone Number
+                  </label>
+                  <span className={`text-[10px] font-mono ${editPhone.length === 10 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-neutral-400'}`}>
+                    {editPhone.length}/10 digits
+                  </span>
+                </div>
                 <input
                   type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]{10}"
+                  maxLength={10}
                   value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
-                  placeholder="e.g. +91 9900876787"
-                  className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#251D18] text-neutral-900 dark:text-[#EDE4DA] placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                  onChange={(e) => {
+                    let digits = e.target.value.replace(/\D/g, '');
+                    if (digits.length === 12 && digits.startsWith('91')) digits = digits.slice(2);
+                    else if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+                    setEditPhone(digits.slice(0, 10));
+                  }}
+                  placeholder="10-digit mobile number"
+                  className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#251D18] text-neutral-900 dark:text-[#EDE4DA] placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-rose-500 font-mono tracking-wide"
                 />
               </div>
 

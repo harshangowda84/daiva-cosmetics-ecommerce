@@ -71,10 +71,22 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
   const [addrSaving, setAddrSaving] = useState(false);
   const [addrError, setAddrError] = useState('');
 
+  // Utility to enforce clean 10-digit phone number (digits only, stripping country code if pasted)
+  const cleanPhone = (val?: string | null): string => {
+    if (!val) return '';
+    let digits = val.replace(/\D/g, '');
+    if (digits.length === 12 && digits.startsWith('91')) {
+      digits = digits.slice(2);
+    } else if (digits.length === 11 && digits.startsWith('0')) {
+      digits = digits.slice(1);
+    }
+    return digits.slice(0, 10);
+  };
+
   const [formData, setFormData] = useState({
     customerName: user?.fullName || '',
     customerEmail: user?.email || '',
-    customerPhone: user?.phone || '',
+    customerPhone: cleanPhone(user?.phone),
     addressLine: user?.addressLine1 || '',
     city: user?.city || '',
     state: user?.state || '',
@@ -101,7 +113,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
               ...prev,
               customerName: def.recipientName || user.fullName || prev.customerName,
               customerEmail: user.email || prev.customerEmail,
-              customerPhone: def.phone || user.phone || prev.customerPhone,
+              customerPhone: cleanPhone(def.phone || user.phone || prev.customerPhone),
               addressLine: def.addressLine1 + (def.addressLine2 ? `, ${def.addressLine2}` : '') + (def.landmark ? ` (Near ${def.landmark})` : ''),
               city: def.city,
               state: def.state,
@@ -113,7 +125,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
               ...prev,
               customerName: user.fullName || prev.customerName,
               customerEmail: user.email || prev.customerEmail,
-              customerPhone: user.phone || prev.customerPhone,
+              customerPhone: cleanPhone(user.phone || prev.customerPhone),
               addressLine: user.addressLine1 || '',
               city: user.city || '',
               state: user.state || '',
@@ -136,7 +148,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     setFormData((prev) => ({
       ...prev,
       customerName: addr.recipientName || prev.customerName,
-      customerPhone: addr.phone || prev.customerPhone,
+      customerPhone: cleanPhone(addr.phone || prev.customerPhone),
       addressLine: addr.addressLine1 + (addr.addressLine2 ? `, ${addr.addressLine2}` : '') + (addr.landmark ? ` (Near ${addr.landmark})` : ''),
       city: addr.city,
       state: addr.state,
@@ -147,7 +159,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
   const handleOpenNewAddressModal = () => {
     setAddrType('HOME');
     setAddrRecipient(user?.fullName || formData.customerName || '');
-    setAddrPhone(user?.phone || formData.customerPhone || '');
+    setAddrPhone(cleanPhone(user?.phone || formData.customerPhone || ''));
     setAddrLine1('');
     setAddrLine2('');
     setAddrLandmark('');
@@ -163,6 +175,10 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
     e.preventDefault();
     if (!addrLine1.trim() || !addrCity.trim() || !addrState.trim() || !addrPincode.trim() || !addrRecipient.trim() || !addrPhone.trim()) {
       setAddrError('Please fill in all required fields.');
+      return;
+    }
+    if (addrPhone.length !== 10 || !/^[6-9]\d{9}$/.test(addrPhone)) {
+      setAddrError('Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.');
       return;
     }
     if (!/^[1-9][0-9]{5}$/.test(addrPincode.trim())) {
@@ -249,7 +265,15 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
   const [simulatingPayment, setSimulatingPayment] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    if (name === 'customerEmail') {
+      return; // Email is strictly read-only
+    }
+    if (name === 'customerPhone') {
+      setFormData((prev) => ({ ...prev, customerPhone: cleanPhone(value) }));
+      return;
+    }
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const executePlaceOrder = async (paymentDetails?: {
@@ -311,6 +335,15 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0) return;
+
+    if (!formData.customerPhone || formData.customerPhone.length !== 10) {
+      setError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    if (!/^[6-9]\d{9}$/.test(formData.customerPhone)) {
+      setError('Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.');
+      return;
+    }
 
     try {
       setLoading(true);
@@ -843,29 +876,63 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                   </div>
 
                   <div>
-                    <label className="font-semibold text-neutral-700 dark:text-neutral-300 block mb-1">Mobile Number *</label>
-                    <input
-                      type="tel"
-                      name="customerPhone"
-                      required
-                      value={formData.customerPhone}
-                      onChange={handleChange}
-                      placeholder="e.g. +91 9876543210"
-                      className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#251D18] text-neutral-900 dark:text-[#EDE4DA] focus:outline-none focus:ring-1 focus:ring-rose-500"
-                    />
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="font-semibold text-neutral-700 dark:text-neutral-300">Mobile Number *</label>
+                      <span className={`text-[10px] font-mono ${formData.customerPhone.length === 10 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-neutral-400'}`}>
+                        {formData.customerPhone.length}/10 digits
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        pattern="[0-9]{10}"
+                        maxLength={10}
+                        name="customerPhone"
+                        required
+                        value={formData.customerPhone}
+                        onChange={handleChange}
+                        placeholder="10-digit mobile number"
+                        className={`w-full p-2.5 rounded-xl border bg-[#FAF9F6] dark:bg-[#251D18] text-neutral-900 dark:text-[#EDE4DA] focus:outline-none focus:ring-1 font-mono tracking-wide ${
+                          formData.customerPhone && formData.customerPhone.length !== 10
+                            ? 'border-amber-400 focus:ring-amber-400'
+                            : 'border-neutral-200 dark:border-[#382B21] focus:ring-rose-500'
+                        }`}
+                      />
+                    </div>
+                    {formData.customerPhone && formData.customerPhone.length > 0 && formData.customerPhone.length < 10 && (
+                      <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        <span>Enter {10 - formData.customerPhone.length} more digit{10 - formData.customerPhone.length > 1 ? 's' : ''} (10 digits only)</span>
+                      </p>
+                    )}
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="font-semibold text-neutral-700 dark:text-neutral-300 block mb-1">Email Address *</label>
-                    <input
-                      type="email"
-                      name="customerEmail"
-                      required
-                      value={formData.customerEmail}
-                      onChange={handleChange}
-                      placeholder="e.g. priya@demo.com"
-                      className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#251D18] text-neutral-900 dark:text-[#EDE4DA] focus:outline-none focus:ring-1 focus:ring-rose-500"
-                    />
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="font-semibold text-neutral-700 dark:text-neutral-300">Email Address *</label>
+                      <span className="text-[10px] text-neutral-500 dark:text-neutral-400 flex items-center gap-1 font-medium">
+                        <Lock className="w-3 h-3 text-neutral-400" />
+                        <span>Account bound (read-only)</span>
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="email"
+                        name="customerEmail"
+                        readOnly
+                        disabled={true}
+                        required
+                        value={formData.customerEmail}
+                        placeholder="e.g. priya@demo.com"
+                        className="w-full p-2.5 pr-10 rounded-xl border border-neutral-200 dark:border-[#382B21] bg-neutral-100/80 dark:bg-[#1E1712] text-neutral-600 dark:text-neutral-400 cursor-not-allowed select-none focus:outline-none opacity-85"
+                        title="Email address is linked to your registered account and cannot be modified at checkout."
+                      />
+                      <Lock className="w-4 h-4 text-neutral-400 absolute right-3.5 top-3 pointer-events-none" />
+                    </div>
+                    <p className="text-[10px] text-neutral-400 dark:text-neutral-500 mt-1">
+                      Order confirmation and shipping tracking updates will be delivered to this verified email.
+                    </p>
                   </div>
 
                   <div className="sm:col-span-2">
@@ -1241,16 +1308,24 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onNavigate }) => {
                   />
                 </div>
                 <div>
-                  <label className="font-semibold text-neutral-800 dark:text-[#EDE4DA] block mb-1">
-                    Contact Phone Number *
-                  </label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="font-semibold text-neutral-800 dark:text-[#EDE4DA]">
+                      Contact Phone Number *
+                    </label>
+                    <span className={`text-[10px] font-mono ${addrPhone.length === 10 ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-neutral-400'}`}>
+                      {addrPhone.length}/10 digits
+                    </span>
+                  </div>
                   <input
                     type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]{10}"
+                    maxLength={10}
                     required
                     value={addrPhone}
-                    onChange={(e) => setAddrPhone(e.target.value)}
-                    placeholder="e.g., +91 9876543210"
-                    className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#251D18] text-neutral-900 dark:text-[#EDE4DA] placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                    onChange={(e) => setAddrPhone(cleanPhone(e.target.value))}
+                    placeholder="10-digit mobile number"
+                    className="w-full p-2.5 rounded-xl border border-neutral-200 dark:border-[#382B21] bg-[#FAF9F6] dark:bg-[#251D18] text-neutral-900 dark:text-[#EDE4DA] placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-rose-500 font-mono tracking-wide"
                   />
                 </div>
               </div>

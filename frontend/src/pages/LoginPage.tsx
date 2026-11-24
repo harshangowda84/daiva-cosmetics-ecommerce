@@ -70,13 +70,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login', onNav
 
   // Real-time validation rules
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const phoneClean = phone.replace(/[\s\-\+\(\)]/g, '');
-  const isIndianPhoneValid = phoneClean.length === 10 ? /^[6-9]\d{9}$/.test(phoneClean) : (phoneClean.length === 12 && phoneClean.startsWith('91')) ? /^[6-9]\d{9}$/.test(phoneClean.substring(2)) : false;
+  const phoneClean = phone.replace(/\D/g, '');
+  const isIndianPhoneValid = phoneClean.length === 10 && /^[6-9]\d{9}$/.test(phoneClean);
 
   const emailError = !email ? 'Email address is required' : !emailRegex.test(email) ? 'Please enter a valid email address (e.g. name@domain.com)' : '';
   const passwordError = !password ? 'Password is required' : password.length < 6 ? 'Password must be at least 6 characters' : '';
   const nameError = !isLogin ? (!fullName.trim() ? 'Full name is required' : fullName.trim().length < 2 ? 'Name must be at least 2 characters' : '') : '';
-  const phoneError = !isLogin && phone ? (!isIndianPhoneValid ? 'Please enter a valid 10-digit mobile number' : '') : '';
+  const phoneError = !isLogin ? (!phone ? 'Mobile number is required' : phone.length !== 10 ? 'Mobile number must be exactly 10 digits' : !isIndianPhoneValid ? 'Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9' : '') : '';
 
   // Initialize Google Identity Services (GIS)
   useEffect(() => {
@@ -484,18 +484,33 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login', onNav
                 </div>
 
                 <div>
-                  <label className="font-semibold text-neutral-700 block mb-1">
-                    Mobile Number <span className="text-neutral-400 font-normal">(10-digit for courier SMS)</span>
-                  </label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="font-semibold text-neutral-700 block">
+                      Mobile Number <span className="text-red-500">*</span>
+                    </label>
+                    <span className={`text-[10px] font-mono ${phone.length === 10 ? 'text-emerald-600 font-bold' : 'text-neutral-400'}`}>
+                      {phone.length}/10 digits
+                    </span>
+                  </div>
                   <div className="relative">
                     <input
                       type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]{10}"
                       value={phone}
                       onBlur={() => setTouched((p) => ({ ...p, phone: true }))}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="9876543210"
-                      maxLength={14}
-                      className={`w-full pl-10 pr-4 py-2.5 rounded-xl border bg-[#FAF9F6] focus:outline-none transition ${
+                      onChange={(e) => {
+                        let digits = e.target.value.replace(/\D/g, '');
+                        if (digits.length === 12 && digits.startsWith('91')) {
+                          digits = digits.slice(2);
+                        } else if (digits.length === 11 && digits.startsWith('0')) {
+                          digits = digits.slice(1);
+                        }
+                        setPhone(digits.slice(0, 10));
+                      }}
+                      placeholder="10-digit mobile number"
+                      maxLength={10}
+                      className={`w-full pl-10 pr-4 py-2.5 rounded-xl border bg-[#FAF9F6] focus:outline-none transition font-mono tracking-wide ${
                         touched.phone && phoneError
                           ? 'border-red-400 focus:ring-1 focus:ring-red-400 bg-red-50/20'
                           : 'border-neutral-200 focus:ring-1 focus:ring-rose-500'
