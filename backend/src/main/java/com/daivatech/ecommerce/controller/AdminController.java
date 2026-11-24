@@ -28,6 +28,7 @@ public class AdminController {
     private final StockMovementService stockMovementService;
     private final BatchStockService batchStockService;
     private final com.daivatech.ecommerce.service.EmailService emailService;
+    private final com.daivatech.ecommerce.service.DataInitializer dataInitializer;
 
     public AdminController(ProductRepository productRepository,
                            ProductService productService,
@@ -37,7 +38,8 @@ public class AdminController {
                            ImageStorageService imageStorageService,
                            StockMovementService stockMovementService,
                            BatchStockService batchStockService,
-                           com.daivatech.ecommerce.service.EmailService emailService) {
+                           com.daivatech.ecommerce.service.EmailService emailService,
+                           com.daivatech.ecommerce.service.DataInitializer dataInitializer) {
         this.productRepository = productRepository;
         this.productService = productService;
         this.orderService = orderService;
@@ -47,6 +49,7 @@ public class AdminController {
         this.stockMovementService = stockMovementService;
         this.batchStockService = batchStockService;
         this.emailService = emailService;
+        this.dataInitializer = dataInitializer;
     }
 
     @GetMapping("/products")
@@ -752,6 +755,16 @@ public class AdminController {
                 "success", sent,
                 "message", "Test email processed for " + recipient + " (Type: " + type + ")",
                 "status", emailService.getStatus()
+        ));
+    }
+
+    @PostMapping("/products/reseed-catalog")
+    public ResponseEntity<?> reseedCatalog() {
+        dataInitializer.seedCosmetics();
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Catalog successfully seeded with 20 real Myntra beauty products across all 6 categories with 4 high-res gallery images each!",
+                "count", productRepository.count()
         ));
     }
 }

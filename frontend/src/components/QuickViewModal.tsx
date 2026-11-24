@@ -4,7 +4,7 @@ import { X, Star, ShoppingBag, Check, Heart, ExternalLink, Sparkles, ShieldCheck
 import { Product, ProductVariant } from '../types';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
-import { getFullImageUrl, handleImageError } from '../utils/image';
+import { getFullImageUrl, handleImageError, parseGalleryImages } from '../utils/image';
 
 interface QuickViewModalProps {
   product: Product | null;
@@ -68,9 +68,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({
 
   if (!isOpen || !product) return null;
 
-  const galleryList = product.galleryImages
-    ? product.galleryImages.split(',').map((img) => img.trim()).filter(Boolean)
-    : [product.imageUrl];
+  const galleryList = parseGalleryImages(product.galleryImages, product.imageUrl);
 
   // Price & Stock derived from active variant or base product
   const currentPrice = selectedVariant ? selectedVariant.price : product.price;

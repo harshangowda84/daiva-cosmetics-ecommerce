@@ -25,7 +25,7 @@ public class Product {
 
     private String subCategory; // e.g. "Serums & Treatments", "Moisturizers", "Lipsticks", "Sun Care"
 
-    @Column(length = 2000)
+    @Column(length = 4000)
     private String description;
 
     @Column(nullable = false)
@@ -50,7 +50,7 @@ public class Product {
     @Column(length = 1000)
     private String imageUrl;
 
-    @Column(length = 2000)
+    @Column(length = 4000)
     private String galleryImages; // comma-separated image URLs
 
     private String volume; // "30 ml", "50 g"

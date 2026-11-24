@@ -4,7 +4,7 @@ import { Product } from '../types';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
 import { useSettings } from '../context/SettingsContext';
-import { getFullImageUrl, handleImageError } from '../utils/image';
+import { getFullImageUrl, handleImageError, parseGalleryImages } from '../utils/image';
 import { ShareProductModal } from './ShareProductModal';
 import { QuickViewModal } from './QuickViewModal';
 
@@ -41,17 +41,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onNavigate })
 
   // Deduplicate and collect all available images
   const allImages = useMemo(() => {
-    const list: string[] = [];
-    if (product.imageUrl) list.push(product.imageUrl);
-    if (product.galleryImages) {
-      const split = product.galleryImages.split(',').map((s) => s.trim()).filter(Boolean);
-      for (const url of split) {
-        if (!list.includes(url)) {
-          list.push(url);
-        }
-      }
-    }
-    return list.length > 0 ? list : [product.imageUrl];
+    return parseGalleryImages(product.galleryImages, product.imageUrl);
   }, [product.imageUrl, product.galleryImages]);
 
   // Handle smooth auto-cycling through images while hovering

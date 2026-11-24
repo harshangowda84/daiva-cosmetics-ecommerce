@@ -31,7 +31,7 @@ import { useBrowsingHistory } from '../context/BrowsingHistoryContext';
 import { ProductCard } from '../components/ProductCard';
 import { RecentlyViewedSection } from '../components/RecentlyViewedSection';
 import { ShareProductModal } from '../components/ShareProductModal';
-import { getFullImageUrl, handleImageError } from '../utils/image';
+import { getFullImageUrl, handleImageError, parseGalleryImages } from '../utils/image';
 
 interface PDPPageProps {
   slug: string;
@@ -192,9 +192,7 @@ export const PDPPage: React.FC<PDPPageProps> = ({ slug, onNavigate }) => {
     );
   }
 
-  const galleryList = product.galleryImages
-    ? product.galleryImages.split(',').filter(Boolean)
-    : [product.imageUrl];
+  const galleryList = parseGalleryImages(product.galleryImages, product.imageUrl);
 
   // Price & Stock derived from active variant or product
   const currentPrice = selectedVariant ? selectedVariant.price : product.price;

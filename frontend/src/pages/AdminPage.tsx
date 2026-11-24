@@ -53,7 +53,7 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { Product, ProductVariant, CustomerOrder, ZohoStatus, UploadedImageInfo, StockMovement, ProductBatch, ShipmentTracking, ProductReview, OrderReturnExchange } from '../types';
-import { getFullImageUrl, handleImageError } from '../utils/image';
+import { getFullImageUrl, handleImageError, parseGalleryImages } from '../utils/image';
 import { XpressBeesSimulatorModal } from '../components/XpressBeesSimulatorModal';
 import { AdminFooterPoliciesEditor } from '../components/AdminFooterPoliciesEditor';
 import { AdminCategoriesEditor } from '../components/AdminCategoriesEditor';
@@ -187,8 +187,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ onNavigate }) => {
   });
 
   const getGalleryArray = (galleryStr?: string, fallbackImg?: string): string[] => {
-    if (!galleryStr) return fallbackImg ? [fallbackImg] : [];
-    return galleryStr.split(',').map((s) => s.trim()).filter(Boolean);
+    return parseGalleryImages(galleryStr, fallbackImg);
   };
 
   const handleUploadForAdd = async (e: React.ChangeEvent<HTMLInputElement>) => {

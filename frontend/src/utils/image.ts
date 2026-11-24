@@ -32,3 +32,20 @@ export function handleImageError(e: React.SyntheticEvent<HTMLImageElement, Event
     target.src = DEFAULT_FALLBACK_IMAGE;
   }
 }
+
+export function parseGalleryImages(galleryImages?: string, defaultImg?: string): string[] {
+  if (!galleryImages || !galleryImages.trim()) {
+    return defaultImg && defaultImg.trim() ? [defaultImg.trim()] : [DEFAULT_FALLBACK_IMAGE];
+  }
+  // Split on delimiters followed by protocol/relative path without breaking commas inside query/CDN parameters
+  const regex = /[,;\n|](?=https?:\/\/|data:|\/)/;
+  const rawList = galleryImages
+    .split(regex)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (rawList.length === 0 && defaultImg && defaultImg.trim()) {
+    return [defaultImg.trim()];
+  }
+  return rawList.length > 0 ? rawList : [DEFAULT_FALLBACK_IMAGE];
+}
