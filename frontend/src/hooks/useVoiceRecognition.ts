@@ -1,0 +1,146 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+  resultIndex: number;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+  message?: string;
+}
+
+export interface UseVoiceRecognitionOptions {
+  onTranscriptChange?: (text: string) => void;
+  onFinalTranscript?: (text: string) => void;
+  lang?: string;
+}
+
+export const useVoiceRecognition = (options?: UseVoiceRecognitionOptions) => {
+  const [isListening, setIsListening] = useState(false);
+  const [isSupported, setIsSupported] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const recognitionRef = useRef<any>(null);
+
+  // Keep options in a ref to avoid recreating recognition on every render
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
+  useEffect(() => {
+    const SpeechRecognitionClass =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (SpeechRecognitionClass) {
+      setIsSupported(true);
+      const recognition = new SpeechRecognitionClass();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = options?.lang || (navigator.language.startsWith('en') ? navigator.language : 'en-IN');
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        setErrorMessage(null);
+      };
+
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const item = event.results[i];
+          const transcriptPiece = item[0].transcript;
+          if (item.isFinal) {
+            finalTranscript += transcriptPiece;
+          } else {
+            interimTranscript += transcriptPiece;
+          }
+        }
+
+        const currentText = finalTranscript || interimTranscript;
+        if (currentText) {
+          optionsRef.current?.onTranscriptChange?.(currentText);
+        }
+
+        if (finalTranscript && finalTranscript.trim()) {
+          optionsRef.current?.onFinalTranscript?.(finalTranscript.trim());
+        }
+      };
+
+      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+        if (event.error === 'not-allowed') {
+          setErrorMessage('Microphone access denied. Please allow microphone permissions.');
+        } else if (event.error === 'no-speech') {
+          // No speech detected, quietly finish
+        } else if (event.error !== 'aborted') {
+          setErrorMessage(`Voice recognition: ${event.error}`);
+        }
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+    } else {
+      setIsSupported(false);
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {
+          // Ignore
+        }
+      }
+    };
+  }, [options?.lang]);
+
+  const startListening = useCallback(() => {
+    if (!recognitionRef.current) {
+      setErrorMessage('Voice search is not supported in this browser.');
+      return;
+    }
+    try {
+      setErrorMessage(null);
+      recognitionRef.current.start();
+    } catch (err: any) {
+      if (err.name === 'InvalidStateError') {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+      } else {
+        console.warn('Could not start recognition:', err);
+      }
+    }
+  }, []);
+
+  const stopListening = useCallback(() => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        // Ignore
+      }
+    }
+    setIsListening(false);
+  }, []);
+
+  const toggleListening = useCallback(() => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  }, [isListening, startListening, stopListening]);
+
+  return {
+    isListening,
+    isSupported,
+    errorMessage,
+    startListening,
+    stopListening,
+    toggleListening,
+  };
+};

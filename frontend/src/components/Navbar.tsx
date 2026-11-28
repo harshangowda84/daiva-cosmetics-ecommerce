@@ -5,6 +5,8 @@ import { useWishlist } from '../context/WishlistContext';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { ThemeToggle } from './ThemeToggle';
+import { VoiceSearchButton } from './VoiceSearchButton';
+import { useVoiceRecognition } from '../hooks/useVoiceRecognition';
 import { api } from '../services/api';
 import { Product } from '../types';
 import { getFullImageUrl, handleImageError } from '../utils/image';
@@ -26,6 +28,24 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, current
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // Web Speech API Voice Search
+  const {
+    isListening,
+    isSupported: isVoiceSupported,
+    errorMessage: voiceError,
+    toggleListening,
+  } = useVoiceRecognition({
+    onTranscriptChange: (text) => {
+      setSearchQuery(text);
+      setIsSearchOpen(true);
+    },
+    onFinalTranscript: (finalText) => {
+      setSearchQuery(finalText);
+      setIsSearchOpen(false);
+      onNavigate('search', finalText);
+    },
+  });
 
   // Debounced search
   useEffect(() => {
@@ -119,21 +139,47 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, current
             </span>
           </div>
 
-          {/* Global Search Bar with Live Suggest */}
+          {/* Global Search Bar with Live Suggest & Voice Search */}
           <div className="flex-1 max-w-lg hidden md:block relative" ref={searchRef}>
             <form onSubmit={handleSearchSubmit} className="relative">
               <input
                 type="text"
-                placeholder="Search luxury skincare, serums, lipsticks..."
+                placeholder={isListening ? "Listening... Speak your beauty search..." : "Search luxury skincare, serums, lipsticks..."}
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
                   setIsSearchOpen(true);
                 }}
                 onFocus={() => setIsSearchOpen(true)}
-                className="w-full bg-[#f1ece5] dark:bg-[#1E1713] text-sm text-neutral-800 dark:text-[#EDE4DA] placeholder-neutral-500 dark:placeholder-neutral-400 rounded-full pl-11 pr-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#8B755E]/40 border border-transparent dark:border-[#33261D] transition"
+                className={`w-full bg-[#f1ece5] dark:bg-[#1E1713] text-sm text-neutral-800 dark:text-[#EDE4DA] placeholder-neutral-500 dark:placeholder-neutral-400 rounded-full pl-11 pr-20 py-2.5 focus:outline-none focus:ring-2 transition ${
+                  isListening
+                    ? 'ring-2 ring-rose-500/80 bg-rose-50/50 dark:bg-rose-950/20 placeholder-rose-600 dark:placeholder-rose-400'
+                    : 'focus:ring-[#8B755E]/40 border border-transparent dark:border-[#33261D]'
+                }`}
               />
               <Search className="w-4 h-4 text-neutral-400 absolute left-4 top-3" />
+
+              <div className="absolute right-2.5 top-1.5 flex items-center gap-0.5">
+                {searchQuery && !isListening && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setIsSearchOpen(false);
+                    }}
+                    className="p-1 rounded-full text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition cursor-pointer"
+                    title="Clear search"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <VoiceSearchButton
+                  isListening={isListening}
+                  isSupported={isVoiceSupported}
+                  onToggle={toggleListening}
+                  size="md"
+                />
+              </div>
             </form>
 
             {/* Live Search Suggestion Dropdown */}
@@ -335,12 +381,34 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, current
           <form onSubmit={handleSearchSubmit} className="relative">
             <input
               type="text"
-              placeholder="Search cosmetics..."
+              placeholder={isListening ? "Listening... Speak now..." : "Search cosmetics..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#f1ece5] dark:bg-[#201813] text-neutral-800 dark:text-[#EDE4DA] placeholder-neutral-500 dark:placeholder-neutral-400 text-sm rounded-full pl-10 pr-4 py-2 border border-transparent dark:border-[#33261D] focus:outline-none"
+              className={`w-full bg-[#f1ece5] dark:bg-[#201813] text-neutral-800 dark:text-[#EDE4DA] placeholder-neutral-500 dark:placeholder-neutral-400 text-sm rounded-full pl-10 pr-16 py-2 border transition focus:outline-none ${
+                isListening
+                  ? 'border-rose-500 ring-2 ring-rose-500/50 bg-rose-50/50 dark:bg-rose-950/20'
+                  : 'border-transparent dark:border-[#33261D]'
+              }`}
             />
             <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-2.5" />
+            <div className="absolute right-2 top-1 flex items-center gap-0.5">
+              {searchQuery && !isListening && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="p-1 rounded-full text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <VoiceSearchButton
+                isListening={isListening}
+                isSupported={isVoiceSupported}
+                onToggle={toggleListening}
+                size="sm"
+              />
+            </div>
           </form>
 
           {/* Mobile Theme Toggle */}

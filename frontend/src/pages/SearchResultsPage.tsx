@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Sparkles, ArrowRight } from 'lucide-react';
+import { Search, Sparkles, ArrowRight, X } from 'lucide-react';
 import { Product } from '../types';
 import { api } from '../services/api';
 import { ProductCard } from '../components/ProductCard';
+import { VoiceSearchButton } from '../components/VoiceSearchButton';
+import { useVoiceRecognition } from '../hooks/useVoiceRecognition';
 
 interface SearchResultsPageProps {
   query: string;
@@ -13,6 +15,20 @@ export const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, onN
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(query);
+
+  const {
+    isListening,
+    isSupported: isVoiceSupported,
+    toggleListening,
+  } = useVoiceRecognition({
+    onTranscriptChange: (text) => {
+      setSearchTerm(text);
+    },
+    onFinalTranscript: (finalText) => {
+      setSearchTerm(finalText);
+      fetchResults(finalText);
+    },
+  });
 
   const fetchResults = async (q: string) => {
     try {
@@ -51,19 +67,43 @@ export const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, onN
             Search Results for <span className="italic font-normal text-rose-800">"{searchTerm}"</span>
           </h1>
 
-          {/* Quick inline search bar */}
+          {/* Quick inline search bar with Voice Search */}
           <form onSubmit={handleSearchSubmit} className="relative mt-4">
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search cosmetics by name, brand, active ingredient..."
-              className="w-full text-xs sm:text-sm bg-white rounded-full pl-10 pr-24 py-3 border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-rose-500 shadow-sm"
+              placeholder={isListening ? "Listening... Speak your cosmetics query..." : "Search cosmetics by name, brand, active ingredient..."}
+              className={`w-full text-xs sm:text-sm bg-white dark:bg-[#1A1410] rounded-full pl-10 pr-32 py-3 border focus:outline-none focus:ring-2 shadow-sm transition ${
+                isListening
+                  ? 'border-rose-500 ring-2 ring-rose-500/50 bg-rose-50/40 dark:bg-rose-950/20'
+                  : 'border-neutral-300 dark:border-[#2C211A] focus:ring-rose-500'
+              }`}
             />
             <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3.5" />
+
+            <div className="absolute right-20 top-2.5 flex items-center gap-1">
+              {searchTerm && !isListening && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="p-1 rounded-full text-neutral-400 hover:text-neutral-600 transition"
+                  title="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <VoiceSearchButton
+                isListening={isListening}
+                isSupported={isVoiceSupported}
+                onToggle={toggleListening}
+                size="sm"
+              />
+            </div>
+
             <button
               type="submit"
-              className="absolute right-2 top-2 px-4 py-1.5 rounded-full bg-[#1E1611] text-white text-xs font-semibold hover:bg-rose-700 transition"
+              className="absolute right-2 top-2 px-4 py-1.5 rounded-full bg-[#1E1611] dark:bg-rose-950 text-white text-xs font-semibold hover:bg-rose-700 transition cursor-pointer"
             >
               Search
             </button>
