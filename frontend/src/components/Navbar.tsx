@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 import { ThemeToggle } from './ThemeToggle';
 import { VoiceSearchButton } from './VoiceSearchButton';
+import { VoiceSearchModal } from './VoiceSearchModal';
 import { useVoiceRecognition } from '../hooks/useVoiceRecognition';
 import { api } from '../services/api';
 import { Product } from '../types';
@@ -27,6 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, current
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
   // Web Speech API Voice Search
@@ -34,18 +36,36 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, current
     isListening,
     isSupported: isVoiceSupported,
     errorMessage: voiceError,
+    transcript: voiceTranscript,
+    startListening,
+    stopListening,
     toggleListening,
   } = useVoiceRecognition({
     onTranscriptChange: (text) => {
       setSearchQuery(text);
-      setIsSearchOpen(true);
     },
     onFinalTranscript: (finalText) => {
       setSearchQuery(finalText);
-      setIsSearchOpen(false);
-      onNavigate('search', finalText);
     },
   });
+
+  const handleOpenVoiceSearch = () => {
+    setIsVoiceModalOpen(true);
+    startListening();
+  };
+
+  const handleCloseVoiceSearch = () => {
+    setIsVoiceModalOpen(false);
+    stopListening();
+  };
+
+  const handleVoiceSearchSubmit = (queryToSearch: string) => {
+    setSearchQuery(queryToSearch);
+    setIsSearchOpen(false);
+    setIsVoiceModalOpen(false);
+    stopListening();
+    onNavigate('search', queryToSearch);
+  };
 
   // Debounced search
   useEffect(() => {
@@ -174,9 +194,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, current
                   </button>
                 )}
                 <VoiceSearchButton
-                  isListening={isListening}
+                  isListening={isListening || isVoiceModalOpen}
                   isSupported={isVoiceSupported}
-                  onToggle={toggleListening}
+                  onToggle={handleOpenVoiceSearch}
                   size="md"
                 />
               </div>
@@ -403,9 +423,9 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, current
                 </button>
               )}
               <VoiceSearchButton
-                isListening={isListening}
+                isListening={isListening || isVoiceModalOpen}
                 isSupported={isVoiceSupported}
-                onToggle={toggleListening}
+                onToggle={handleOpenVoiceSearch}
                 size="sm"
               />
             </div>
@@ -491,6 +511,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onNavigate, currentPage, current
           </div>
         </div>
       )}
+
+      {/* Google-style Voice Search Modal with Live Transcription & Audio Waves */}
+      <VoiceSearchModal
+        isOpen={isVoiceModalOpen}
+        onClose={handleCloseVoiceSearch}
+        onSearch={handleVoiceSearchSubmit}
+        isListening={isListening}
+        transcript={voiceTranscript || searchQuery}
+        onToggleListening={toggleListening}
+        errorMessage={voiceError}
+      />
     </header>
   );
 };

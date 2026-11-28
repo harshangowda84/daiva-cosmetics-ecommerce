@@ -20,9 +20,9 @@ export const useVoiceRecognition = (options?: UseVoiceRecognitionOptions) => {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [transcript, setTranscript] = useState<string>('');
   const recognitionRef = useRef<any>(null);
 
-  // Keep options in a ref to avoid recreating recognition on every render
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
@@ -35,7 +35,9 @@ export const useVoiceRecognition = (options?: UseVoiceRecognitionOptions) => {
       const recognition = new SpeechRecognitionClass();
       recognition.continuous = false;
       recognition.interimResults = true;
-      recognition.lang = options?.lang || (navigator.language.startsWith('en') ? navigator.language : 'en-IN');
+      recognition.lang =
+        options?.lang ||
+        (navigator.language.startsWith('en') ? navigator.language : 'en-IN');
 
       recognition.onstart = () => {
         setIsListening(true);
@@ -46,18 +48,19 @@ export const useVoiceRecognition = (options?: UseVoiceRecognitionOptions) => {
         let interimTranscript = '';
         let finalTranscript = '';
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
+        for (let i = 0; i < event.results.length; ++i) {
           const item = event.results[i];
-          const transcriptPiece = item[0].transcript;
+          const piece = item[0].transcript;
           if (item.isFinal) {
-            finalTranscript += transcriptPiece;
+            finalTranscript += piece;
           } else {
-            interimTranscript += transcriptPiece;
+            interimTranscript += piece;
           }
         }
 
-        const currentText = finalTranscript || interimTranscript;
+        const currentText = (finalTranscript + (interimTranscript ? ' ' + interimTranscript : '')).trim();
         if (currentText) {
+          setTranscript(currentText);
           optionsRef.current?.onTranscriptChange?.(currentText);
         }
 
@@ -68,9 +71,9 @@ export const useVoiceRecognition = (options?: UseVoiceRecognitionOptions) => {
 
       recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         if (event.error === 'not-allowed') {
-          setErrorMessage('Microphone access denied. Please allow microphone permissions.');
+          setErrorMessage('Microphone access was denied. Please allow microphone permissions.');
         } else if (event.error === 'no-speech') {
-          // No speech detected, quietly finish
+          // No speech detected
         } else if (event.error !== 'aborted') {
           setErrorMessage(`Voice recognition: ${event.error}`);
         }
@@ -104,6 +107,7 @@ export const useVoiceRecognition = (options?: UseVoiceRecognitionOptions) => {
     }
     try {
       setErrorMessage(null);
+      setTranscript('');
       recognitionRef.current.start();
     } catch (err: any) {
       if (err.name === 'InvalidStateError') {
@@ -127,6 +131,10 @@ export const useVoiceRecognition = (options?: UseVoiceRecognitionOptions) => {
     setIsListening(false);
   }, []);
 
+  const resetTranscript = useCallback(() => {
+    setTranscript('');
+  }, []);
+
   const toggleListening = useCallback(() => {
     if (isListening) {
       stopListening();
@@ -139,8 +147,10 @@ export const useVoiceRecognition = (options?: UseVoiceRecognitionOptions) => {
     isListening,
     isSupported,
     errorMessage,
+    transcript,
     startListening,
     stopListening,
     toggleListening,
+    resetTranscript,
   };
 };

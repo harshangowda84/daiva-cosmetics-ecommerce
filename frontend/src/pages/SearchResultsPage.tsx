@@ -4,6 +4,7 @@ import { Product } from '../types';
 import { api } from '../services/api';
 import { ProductCard } from '../components/ProductCard';
 import { VoiceSearchButton } from '../components/VoiceSearchButton';
+import { VoiceSearchModal } from '../components/VoiceSearchModal';
 import { useVoiceRecognition } from '../hooks/useVoiceRecognition';
 
 interface SearchResultsPageProps {
@@ -15,10 +16,15 @@ export const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, onN
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState(query);
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
 
   const {
     isListening,
     isSupported: isVoiceSupported,
+    errorMessage: voiceError,
+    transcript: voiceTranscript,
+    startListening,
+    stopListening,
     toggleListening,
   } = useVoiceRecognition({
     onTranscriptChange: (text) => {
@@ -26,9 +32,25 @@ export const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, onN
     },
     onFinalTranscript: (finalText) => {
       setSearchTerm(finalText);
-      fetchResults(finalText);
     },
   });
+
+  const handleOpenVoiceSearch = () => {
+    setIsVoiceModalOpen(true);
+    startListening();
+  };
+
+  const handleCloseVoiceSearch = () => {
+    setIsVoiceModalOpen(false);
+    stopListening();
+  };
+
+  const handleVoiceSearchSubmit = (finalQuery: string) => {
+    setSearchTerm(finalQuery);
+    setIsVoiceModalOpen(false);
+    stopListening();
+    fetchResults(finalQuery);
+  };
 
   const fetchResults = async (q: string) => {
     try {
@@ -94,9 +116,9 @@ export const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, onN
                 </button>
               )}
               <VoiceSearchButton
-                isListening={isListening}
+                isListening={isListening || isVoiceModalOpen}
                 isSupported={isVoiceSupported}
-                onToggle={toggleListening}
+                onToggle={handleOpenVoiceSearch}
                 size="sm"
               />
             </div>
@@ -158,6 +180,17 @@ export const SearchResultsPage: React.FC<SearchResultsPageProps> = ({ query, onN
           ))}
         </div>
       )}
+
+      {/* Google-style Voice Search Modal with Live Transcription & Audio Waves */}
+      <VoiceSearchModal
+        isOpen={isVoiceModalOpen}
+        onClose={handleCloseVoiceSearch}
+        onSearch={handleVoiceSearchSubmit}
+        isListening={isListening}
+        transcript={voiceTranscript || searchTerm}
+        onToggleListening={toggleListening}
+        errorMessage={voiceError}
+      />
     </div>
   );
 };
