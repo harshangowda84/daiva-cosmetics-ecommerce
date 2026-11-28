@@ -22,7 +22,7 @@ export const VoiceSearchModal: React.FC<VoiceSearchModalProps> = ({
   errorMessage,
 }) => {
   const [autoSubmitCountdown, setAutoSubmitCountdown] = useState<number | null>(null);
-  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Close on Escape key
   useEffect(() => {
